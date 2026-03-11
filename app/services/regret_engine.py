@@ -125,7 +125,7 @@ class WaiverRegretCalculator:
         self.session = session
     
     async def calculate_weekly_waiver_regret(
-        self, team_id: str, week: int
+        self, team_id: str, week: int, season_year: int = 2024
     ) -> List[Dict[str, Any]]:
         """Calculate top 3 waiver regrets for a team in a specific week.
         
@@ -134,16 +134,19 @@ class WaiverRegretCalculator:
         """
         from app.models import LeagueWeeklyRoster, PlayerMap, NflGameLog
         
-        # Get team's roster for the week
+        # Get team's roster for the week (most recent entry)
         result = await self.session.execute(
             select(LeagueWeeklyRoster)
             .where(LeagueWeeklyRoster.team_id == team_id)
             .where(LeagueWeeklyRoster.week == week)
+            .where(LeagueWeeklyRoster.season_year == season_year)
+            .order_by(LeagueWeeklyRoster.created_at.desc())
+            .limit(1)
         )
         roster = result.scalar_one_or_none()
         
         if not roster:
-            logger.warning(f"No roster found for team {team_id}, week {week}")
+            logger.warning(f"No roster found for team {team_id}, week {week}, season {season_year}")
             return []
         
         roster_data = roster.roster_snapshot.get("players", [])
@@ -152,10 +155,11 @@ class WaiverRegretCalculator:
         result = await self.session.execute(select(PlayerMap))
         player_maps = {row.yahoo_id: row.gsis_id for row in result.scalars().all()}
         
-        # Get game logs for this week
+        # Get game logs for this week and season
         result = await self.session.execute(
             select(NflGameLog)
             .where(NflGameLog.week == week)
+            .where(NflGameLog.season_year == season_year)
         )
         week_logs = result.scalars().all()
         
@@ -240,7 +244,7 @@ class StartSitRegretCalculator:
         self.optimizer = LineupOptimizer(roster_requirements)
     
     async def calculate_weekly_startsit_regret(
-        self, team_id: str, week: int
+        self, team_id: str, week: int, season_year: int = 2024
     ) -> Dict[str, Any]:
         """Calculate lineup optimization regret for a team in a specific week.
         
@@ -249,16 +253,19 @@ class StartSitRegretCalculator:
         """
         from app.models import LeagueWeeklyRoster, PlayerMap, NflGameLog
         
-        # Get team's roster for the week
+        # Get team's roster for the week (most recent entry)
         result = await self.session.execute(
             select(LeagueWeeklyRoster)
             .where(LeagueWeeklyRoster.team_id == team_id)
             .where(LeagueWeeklyRoster.week == week)
+            .where(LeagueWeeklyRoster.season_year == season_year)
+            .order_by(LeagueWeeklyRoster.created_at.desc())
+            .limit(1)
         )
         roster = result.scalar_one_or_none()
         
         if not roster:
-            logger.warning(f"No roster found for team {team_id}, week {week}")
+            logger.warning(f"No roster found for team {team_id}, week {week}, season {season_year}")
             return {}
         
         roster_data = roster.roster_snapshot.get("players", [])
@@ -267,10 +274,11 @@ class StartSitRegretCalculator:
         result = await self.session.execute(select(PlayerMap))
         player_maps = {row.yahoo_id: row.gsis_id for row in result.scalars().all()}
         
-        # Get game logs for this week
+        # Get game logs for this week and season
         result = await self.session.execute(
             select(NflGameLog)
             .where(NflGameLog.week == week)
+            .where(NflGameLog.season_year == season_year)
         )
         week_logs = result.scalars().all()
         

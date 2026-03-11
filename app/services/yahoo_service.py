@@ -94,6 +94,7 @@ class YahooFantasyService:
                     "player_id": player["player_id"],
                     "name": player["name"],
                     "position": player.get("eligible_positions", ["UNK"])[0],
+                    "eligible_positions": player.get("eligible_positions", ["UNK"]),
                     "selected_position": player.get("selected_position", "BN"),
                     "is_starter": player.get("selected_position", "BN") != "BN",
                 })

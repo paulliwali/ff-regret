@@ -37,7 +37,7 @@ async def calculate_and_store_team_regrets(session: AsyncSession, team_id: str):
     logger.info(f"Processing team {team_id}")
     
     # Get roster requirements
-    result = await session.execute(select(LeagueConfig))
+    result = await session.execute(select(LeagueConfig).limit(1))
     config = result.scalar_one_or_none()
     
     if not config:

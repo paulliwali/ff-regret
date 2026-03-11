@@ -12,10 +12,11 @@ class LineupOptimizer:
     # Position eligibility rules (simplified for common formats)
     POSITION_TYPES = {
         "QB": ["QB"],
-        "RB": ["RB", "FLEX"],
-        "WR": ["WR", "FLEX"],
-        "TE": ["TE", "FLEX"],
-        "FLEX": ["RB", "WR", "TE"],
+        "RB": ["RB", "FLEX", "W/R/T"],
+        "WR": ["WR", "FLEX", "W/R/T"],
+        "TE": ["TE", "FLEX", "W/R/T"],
+        "FLEX": ["RB", "WR", "TE", "W/R/T"],
+        "W/R/T": ["WR", "RB", "TE"],
         "K": ["K"],
         "DEF": ["DEF"]
     }
@@ -82,7 +83,14 @@ class LineupOptimizer:
         optimal_lineup = self._fill_positions(position_pools)
         
         # Calculate total points
-        optimal_points = sum(p["points"] for p in optimal_lineup.values() if p is not None)
+        optimal_points = 0
+        for position_players in optimal_lineup.values():
+            if position_players is None:
+                continue
+            elif isinstance(position_players, list):
+                optimal_points += sum(p["points"] for p in position_players if p is not None)
+            else:
+                optimal_points += position_players["points"]
         
         return {
             "optimal_lineup": optimal_lineup,
@@ -130,6 +138,7 @@ class LineupOptimizer:
             "RB": [],
             "WR": [],
             "TE": [],
+            "W/R/T": [],
             "K": [],
             "DEF": [],
             "FLEX": []
@@ -158,8 +167,8 @@ class LineupOptimizer:
         used_players = set()
         
         # Fill positions in priority order
-        # Strategy: Fill position-specific slots first, then FLEX
-        position_order = ["QB", "RB", "WR", "TE", "FLEX", "K", "DEF"]
+        # Strategy: Fill position-specific slots first, then W/R/T, then FLEX
+        position_order = ["QB", "RB", "WR", "TE", "W/R/T", "FLEX", "K", "DEF"]
         
         for position in position_order:
             if position not in self.roster_requirements:
@@ -247,8 +256,10 @@ class LineupOptimizer:
                 continue
             
             if isinstance(player_data, list):
-                optimal_players.extend(player_data)
-            else:
+                for p in player_data:
+                    if p is not None and isinstance(p, dict) and "player_id" in p:
+                        optimal_players.append(p)
+            elif isinstance(player_data, dict) and "player_id" in player_data:
                 optimal_players.append(player_data)
         
         optimal_points = optimal_lineup["optimal_points"]

@@ -144,35 +144,41 @@ def collect_all_yahoo_players(draft_results: list, weekly_rosters: dict, waiver_
     """Collect all unique players from draft, rosters, and waivers."""
     players = {}
     
-    # From draft
+    # From draft (draft results don't have names, just player_id)
     for result in draft_results:
         player_id = result["player_id"]
         if player_id and player_id not in players:
             players[player_id] = {
                 "player_id": player_id,
-                "name": result.get("name", "")
+                "name": ""
             }
     
-    # From weekly rosters
+    # From weekly rosters (update names if missing)
     for week, rosters in weekly_rosters.items():
         for team_id, player_list in rosters.items():
             for player in player_list:
                 player_id = player.get("player_id")
-                if player_id and player_id not in players:
+                if player_id:
+                    if player_id not in players:
+                        players[player_id] = {
+                            "player_id": player_id,
+                            "name": player.get("name", "")
+                        }
+                    elif not players[player_id].get("name"):
+                        players[player_id]["name"] = player.get("name", "")
+    
+    # From waiver wire (update names if missing)
+    for week, player_list in waiver_data.items():
+        for player in player_list:
+            player_id = player.get("player_id")
+            if player_id:
+                if player_id not in players:
                     players[player_id] = {
                         "player_id": player_id,
                         "name": player.get("name", "")
                     }
-    
-    # From waiver wire
-    for week, player_list in waiver_data.items():
-        for player in player_list:
-            player_id = player.get("player_id")
-            if player_id and player_id not in players:
-                players[player_id] = {
-                    "player_id": player_id,
-                    "name": player.get("name", "")
-                }
+                elif not players[player_id].get("name"):
+                    players[player_id]["name"] = player.get("name", "")
     
     logger.info(f"Collected {len(players)} unique Yahoo players")
     return list(players.values())
