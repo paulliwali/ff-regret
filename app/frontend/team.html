@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <!-- Team Header -->
+    <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-gray-400 hover:text-white transition-colors">
+                        <span class="text-2xl">←</span>
+                    </a>
+                    <div class="ml-4">
+                        <h1 class="text-xl font-bold text-white">Team Dashboard</h1>
+                        <p class="text-xs text-gray-400">{{ request.team_id }}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-4xl">🏈</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Top Regrets Section -->
+        <div class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6">Your Worst Decisions</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="top-regrets">
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center text-gray-500">
+                    <p class="mb-2">Loading your regrets...</p>
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weekly Breakdown -->
+        <div class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6">Weekly Breakdown</h2>
+            
+            <!-- Week Selector -->
+            <div class="flex items-center space-x-4 mb-6">
+                <label for="week-selector" class="text-sm text-gray-300">Select Week:</label>
+                <select 
+                    id="week-selector"
+                    class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                    hx-get="/api/team/{{ request.team_id }}/startsit-regrets"
+                    hx-trigger="change"
+                    hx-target="#weekly-regrets"
+                    name="week"
+                >
+                    <option value="">All Weeks</option>
+                    {% for week in range(1, 18) %}
+                    <option value="{{ week }}">Week {{ week }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div id="weekly-regrets" class="grid grid-cols-1 gap-4">
+                <!-- Weekly regrets will load here -->
+            </div>
+        </div>
+
+        <!-- Regret by Pillar -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- Draft Regrets -->
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">Draft Regrets</h3>
+                    <span class="text-3xl">📋</span>
+                </div>
+                <div id="draft-regrets-container" 
+                     hx-get="/api/team/{{ request.team_id }}/draft-regrets"
+                     hx-trigger="load">
+                    <div class="text-center text-gray-500">Loading draft regrets...</div>
+                </div>
+            </div>
+
+            <!-- Waiver Regrets -->
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">Waiver Regrets</h3>
+                    <span class="text-3xl">🔍</span>
+                </div>
+                <div id="waiver-regrets-container"
+                     hx-get="/api/team/{{ request.team_id }}/waiver-regrets"
+                     hx-trigger="load">
+                    <div class="text-center text-gray-500">Loading waiver regrets...</div>
+                </div>
+            </div>
+
+            <!-- Start/Sit Regrets -->
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">Start/Sit Regrets</h3>
+                    <span class="text-3xl">🔄</span>
+                </div>
+                <div id="startsit-regrets-container"
+                     hx-get="/api/team/{{ request.team_id }}/startsit-regrets"
+                     hx-trigger="load">
+                    <div class="text-center text-gray-500">Loading lineup regrets...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Load top regrets on page load -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const teamId = '{{ request.team_id }}';
+    
+    // Load top regrets
+    htmx.ajax('GET', `/api/team/${teamId}/all-regrets`, {
+        target: '#top-regrets',
+        swap: 'innerHTML'
+    });
+});
+</script>
+{% endblock %}

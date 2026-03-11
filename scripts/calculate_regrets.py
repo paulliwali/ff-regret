@@ -1,0 +1,142 @@
+"""Calculate and store regret metrics for all teams."""
+
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.db import async_session
+from app.models import LeagueConfig, RegretMetric
+from app.services.regret_engine import RegretEngine
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def store_regret_metrics(
+    session: AsyncSession,
+    team_id: str,
+    metric_type: str,
+    week: int,
+    regret_score: float,
+    data_payload: dict
+):
+    """Store a regret metric in the database."""
+    metric = RegretMetric(
+        team_id=team_id,
+        metric_type=metric_type,
+        week=week,
+        regret_score=regret_score,
+        data_payload=data_payload
+    )
+    session.add(metric)
+    await session.commit()
+
+
+async def calculate_and_store_team_regrets(session: AsyncSession, team_id: str):
+    """Calculate and store all regret metrics for a single team."""
+    logger.info(f"Processing team {team_id}")
+    
+    # Get roster requirements
+    result = await session.execute(select(LeagueConfig))
+    config = result.scalar_one_or_none()
+    
+    if not config:
+        logger.error("No league config found")
+        return
+    
+    roster_requirements = config.roster_requirements
+    
+    # Initialize regret engine
+    engine = RegretEngine(session, roster_requirements)
+    
+    # Calculate all regrets
+    all_regrets = await engine.calculate_all_regrets(team_id)
+    
+    # Store draft regrets
+    for i, draft_regret in enumerate(all_regrets.get("draft_regrets", [])):
+        await store_regret_metrics(
+            session=session,
+            team_id=team_id,
+            metric_type="draft",
+            week=None,
+            regret_score=draft_regret["points_delta"],
+            data_payload={
+                "rank": i + 1,
+                "overall_pick": draft_regret["overall_pick"],
+                "round": draft_regret["round"],
+                "drafted_player_id": draft_regret["drafted_player_id"],
+                "drafted_player_points": draft_regret["drafted_player_points"],
+                "missed_player_id": draft_regret["missed_player_id"],
+                "missed_player_points": draft_regret["missed_player_points"],
+                "narrative": engine.draft_calculator.generate_narrative(draft_regret)
+            }
+        )
+        logger.info(f"  Stored draft regret #{i+1}: {draft_regret['points_delta']:.1f} points")
+    
+    # Store weekly regrets
+    weekly_regrets = all_regrets.get("weekly_regrets", {})
+    for week, week_data in weekly_regrets.items():
+        # Store waiver regrets
+        for i, waiver_regret in enumerate(week_data.get("waiver_regrets", [])):
+            await store_regret_metrics(
+                session=session,
+                team_id=team_id,
+                metric_type="waiver",
+                week=week,
+                regret_score=waiver_regret["points_delta"],
+                data_payload={
+                    "rank": i + 1,
+                    **waiver_regret,
+                    "narrative": engine.waiver_calculator.generate_narrative(waiver_regret, week)
+                }
+            )
+        
+        # Store start/sit regrets
+        startsit_data = week_data.get("startsit_regret", {})
+        if startsit_data:
+            await store_regret_metrics(
+                session=session,
+                team_id=team_id,
+                metric_type="start_sit",
+                week=week,
+                regret_score=startsit_data["points_delta"],
+                data_payload={
+                    "actual_points": startsit_data["actual_points"],
+                    "optimal_points": startsit_data["optimal_points"],
+                    "narrative": engine.startsit_calculator.generate_narrative(startsit_data, week)
+                }
+            )
+            logger.info(f"  Stored week {week} start/sit: {startsit_data['points_delta']:.1f} points")
+
+
+async def main():
+    logger.info("Starting regret metrics calculation")
+    
+    async with async_session() as session:
+        try:
+            # Get all unique team IDs from draft results
+            from app.models import LeagueDraftResult
+            
+            result = await session.execute(
+                select(LeagueDraftResult.team_id).distinct()
+            )
+            team_ids = result.scalars().all()
+            
+            logger.info(f"Found {len(team_ids)} teams to process")
+            
+            # Process each team
+            for team_id in team_ids:
+                await calculate_and_store_team_regrets(session, team_id)
+            
+            logger.info("Regret metrics calculation complete!")
+            
+        except Exception as e:
+            logger.error(f"Error during regret calculation: {e}")
+            import traceback
+            traceback.print_exc()
+            await session.rollback()
+            raise
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

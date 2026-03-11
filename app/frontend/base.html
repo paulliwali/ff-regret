@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Football Regret Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .regret-card {
+            transition: all 0.3s ease;
+        }
+        
+        .regret-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .severity-high {
+            border-left: 4px solid #ef4444;
+        }
+        
+        .severity-medium {
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .severity-low {
+            border-left: 4px solid #10b981;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    {% block content %}
+    {% endblock %}
+    
+    <script>
+        document.addEventListener('htmx:beforeRequest', function(evt) {
+            document.body.style.cursor = 'wait';
+        });
+        
+        document.addEventListener('htmx:afterRequest', function(evt) {
+            document.body.style.cursor = 'default';
+        });
+    </script>
+</body>
+</html>
