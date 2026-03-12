@@ -169,14 +169,14 @@ class WaiverRegretCalculator:
         # Separate starters and bench players
         starters = []
         bench = []
-        
+
         for player in roster_data:
-            yahoo_id = player["player_id"]
+            yahoo_id = str(player["player_id"])
             gsis_id = player_maps.get(yahoo_id)
-            
+
             if not gsis_id:
                 continue
-            
+
             points = player_week_points.get(gsis_id, 0)
             
             if player.get("selected_position", "BN") != "BN":
@@ -288,14 +288,14 @@ class StartSitRegretCalculator:
         # Build roster with fantasy points
         team_players = []
         for player in roster_data:
-            yahoo_id = player["player_id"]
+            yahoo_id = str(player["player_id"])
             gsis_id = player_maps.get(yahoo_id)
-            
+
             if not gsis_id:
                 continue
-            
+
             points = player_week_points.get(gsis_id, 0)
-            
+
             team_players.append({
                 "player_id": yahoo_id,
                 "name": player.get("name", ""),

@@ -108,11 +108,10 @@
                         <span class="text-3xl">📋</span>
                     </div>
                     <p class="text-gray-400 mb-4">Draft picks that haunted your season</p>
-                    <button 
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                        hx-get="/api/draft-regrets"
-                        hx-trigger="click"
-                        hx-target="#draft-regrets-content"
+                    <button
+                        id="btn-draft-regrets"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                        disabled
                     >
                         View Draft Regrets
                     </button>
@@ -126,11 +125,10 @@
                         <span class="text-3xl">🔍</span>
                     </div>
                     <p class="text-gray-400 mb-4">Missed opportunities on the waiver wire</p>
-                    <button 
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                        hx-get="/api/waiver-regrets"
-                        hx-trigger="click"
-                        hx-target="#waiver-regrets-content"
+                    <button
+                        id="btn-waiver-regrets"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                        disabled
                     >
                         View Waiver Regrets
                     </button>
@@ -144,11 +142,10 @@
                         <span class="text-3xl">🔄</span>
                     </div>
                     <p class="text-gray-400 mb-4">Lineup decisions that cost you wins</p>
-                    <button 
-                        class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                        hx-get="/api/startsit-regrets"
-                        hx-trigger="click"
-                        hx-target="#startsit-regrets-content"
+                    <button
+                        id="btn-startsit-regrets"
+                        class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                        disabled
                     >
                         View Start/Sit Regrets
                     </button>
@@ -163,13 +160,65 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const teamSelect = document.getElementById('team-select');
+    let currentTeamId = null;
+
+    function renderRegretList(regrets, containerId) {
+        const container = document.getElementById(containerId);
+        if (!regrets || regrets.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-sm">No data available</p>';
+            return;
+        }
+        container.innerHTML = regrets.map(r => {
+            const narrative = r.narrative || '';
+            const score = (r.regret_score || r.points_delta || 0).toFixed(1);
+            const week = r.week ? `Wk ${r.week}` : '';
+            return `
+            <div class="bg-gray-900/50 rounded-lg p-3 mb-2 border border-gray-700/50">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-red-400 font-semibold text-sm">${score} pts</span>
+                    ${week ? `<span class="text-gray-500 text-xs">${week}</span>` : ''}
+                </div>
+                <p class="text-gray-300 text-xs">${narrative}</p>
+            </div>`;
+        }).join('');
+    }
+
+    async function loadDeepDive(type, containerId) {
+        if (!currentTeamId) return;
+        const container = document.getElementById(containerId);
+        container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading...</p>';
+        try {
+            const res = await fetch(`/api/team/${currentTeamId}/${type}-regrets`);
+            const data = await res.json();
+            const key = Object.keys(data)[0];
+            renderRegretList(data[key], containerId);
+        } catch (e) {
+            container.innerHTML = '<p class="text-red-400 text-sm">Failed to load</p>';
+        }
+    }
+
+    // Wire up deep-dive buttons
+    document.getElementById('btn-draft-regrets').addEventListener('click', () => loadDeepDive('draft', 'draft-regrets-content'));
+    document.getElementById('btn-waiver-regrets').addEventListener('click', () => loadDeepDive('waiver', 'waiver-regrets-content'));
+    document.getElementById('btn-startsit-regrets').addEventListener('click', () => loadDeepDive('startsit', 'startsit-regrets-content'));
 
     teamSelect.addEventListener('change', async function() {
         const teamId = this.value;
         if (!teamId) return;
+        currentTeamId = teamId;
 
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('team-dashboard').classList.remove('hidden');
+
+        // Enable deep-dive buttons
+        document.getElementById('btn-draft-regrets').disabled = false;
+        document.getElementById('btn-waiver-regrets').disabled = false;
+        document.getElementById('btn-startsit-regrets').disabled = false;
+
+        // Clear previous deep-dive content
+        document.getElementById('draft-regrets-content').innerHTML = '';
+        document.getElementById('waiver-regrets-content').innerHTML = '';
+        document.getElementById('startsit-regrets-content').innerHTML = '';
 
         // Fetch and render summary
         try {
@@ -194,13 +243,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             container.innerHTML = data.all_regrets.slice(0, 6).map(regret => {
-                const type = regret.metric_type || regret.type || 'unknown';
+                const type = regret.metric_type || 'unknown';
                 const labels = { draft: 'DRAFT REGRET', waiver: 'WAIVER MISS', start_sit: 'START/SIT' };
                 const colors = { draft: 'blue', waiver: 'purple', start_sit: 'orange' };
                 const color = colors[type] || 'gray';
                 const label = labels[type] || type.toUpperCase();
-                const score = (regret.regret_score || regret.points_delta || 0).toFixed(1);
-                const narrative = regret.narrative || regret.description || JSON.stringify(regret).slice(0, 120);
+                const score = (regret.regret_score || 0).toFixed(1);
+                const narrative = regret.narrative || '';
                 const week = regret.week ? `Week ${regret.week}` : 'Season';
 
                 return `

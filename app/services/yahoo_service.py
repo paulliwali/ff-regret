@@ -80,6 +80,12 @@ class YahooFantasyService:
             })
         return formatted
 
+    def fetch_teams(self) -> Dict[str, str]:
+        """Return a mapping of team_key -> team_name."""
+        lg = self.get_league()
+        teams = lg.teams()
+        return {key: info["name"] for key, info in teams.items()}
+
     def fetch_weekly_rosters(self, week: int) -> Dict[str, List[Dict[str, Any]]]:
         lg = self.get_league()
         teams = lg.teams()

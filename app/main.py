@@ -63,10 +63,19 @@ async def get_teams():
 @app.get("/api/teams/options", response_class=HTMLResponse)
 async def get_teams_options():
     """Return team options as HTML for HTMX select population."""
+    import json
+    from pathlib import Path
     from app.models import LeagueWeeklyRoster
     from sqlalchemy import select, distinct
 
     from app.db import async_session
+
+    # Load team names if available
+    team_names_file = Path(__file__).parent / "team_names.json"
+    team_names = {}
+    if team_names_file.exists():
+        team_names = json.loads(team_names_file.read_text())
+
     async with async_session() as session:
         result = await session.execute(
             select(distinct(LeagueWeeklyRoster.team_id))
@@ -77,9 +86,11 @@ async def get_teams_options():
 
     html = '<option value="">-- Select Your Team --</option>\n'
     for team in teams:
-        # Extract team number from "461.l.186782.t.7" format
-        team_num = team.split(".")[-1] if "." in team else team
-        html += f'<option value="{team}">Team {team_num}</option>\n'
+        name = team_names.get(team)
+        if not name:
+            team_num = team.split(".")[-1] if "." in team else team
+            name = f"Team {team_num}"
+        html += f'<option value="{team}">{name}</option>\n'
     return html
 
 
@@ -98,6 +109,7 @@ async def get_team_summary(team_id: str):
                 func.avg(RegretMetric.regret_score).label("avg_regret_per_mistake")
             )
             .where(RegretMetric.team_id == team_id)
+            .where(RegretMetric.regret_score > 0)
         )
         summary = result.first()
         
@@ -128,7 +140,12 @@ async def get_draft_regrets(team_id: str):
         )
         regrets = result.scalars().all()
         
-        return {"draft_regrets": [r.data_payload for r in regrets]}
+        return {
+            "draft_regrets": [
+                {"regret_score": r.regret_score, "week": r.week, **r.data_payload}
+                for r in regrets
+            ]
+        }
 
 
 @app.get("/api/team/{team_id}/waiver-regrets")
@@ -153,7 +170,12 @@ async def get_waiver_regrets(team_id: str, week: int = None):
         result = await session.execute(query)
         regrets = result.scalars().all()
         
-        return {"waiver_regrets": [r.data_payload for r in regrets]}
+        return {
+            "waiver_regrets": [
+                {"regret_score": r.regret_score, "week": r.week, **r.data_payload}
+                for r in regrets
+            ]
+        }
 
 
 @app.get("/api/team/{team_id}/startsit-regrets")
@@ -178,7 +200,12 @@ async def get_startsit_regrets(team_id: str, week: int = None):
         result = await session.execute(query)
         regrets = result.scalars().all()
         
-        return {"startsit_regrets": [r.data_payload for r in regrets]}
+        return {
+            "startsit_regrets": [
+                {"regret_score": r.regret_score, "week": r.week, **r.data_payload}
+                for r in regrets
+            ]
+        }
 
 
 @app.get("/api/team/{team_id}/all-regrets")
@@ -192,12 +219,23 @@ async def get_all_regrets(team_id: str):
         result = await session.execute(
             select(RegretMetric)
             .where(RegretMetric.team_id == team_id)
+            .where(RegretMetric.regret_score > 0)
             .order_by(RegretMetric.regret_score.desc())
             .limit(20)
         )
         regrets = result.scalars().all()
         
-        return {"all_regrets": [r.data_payload for r in regrets]}
+        return {
+            "all_regrets": [
+                {
+                    "metric_type": r.metric_type,
+                    "week": r.week,
+                    "regret_score": r.regret_score,
+                    **r.data_payload,
+                }
+                for r in regrets
+            ]
+        }
 
 
 @app.get("/team/{team_id}")

@@ -166,6 +166,12 @@ An interactive web application for Yahoo Fantasy Football managers to visualize 
 - Use Polars lazy evaluation
 - Store only regret metrics, not intermediate calculations
 
+### Known Data Issues — TO FIX
+
+**Start/Sit & Waiver regrets were broken — FIXED**: Root cause was an int/str type mismatch. Roster snapshot stored `player_id` as int (e.g., `30971`) but `player_map.yahoo_id` is str (`"30971"`). Dict lookups silently returned no match, so all points resolved to 0. Fix: `str(player["player_id"])` in `regret_engine.py`. After fix: 238 start_sit rows (avg 24.2 pts), 511 waiver rows (avg 10.6 pts). Local DB recalculated; **Railway Postgres needs recalculation** (`DATABASE_URL=... uv run python scripts/calculate_regrets.py`).
+
+**Draft regret narratives lack player names**: `data_payload` stores Yahoo player IDs (`drafted_player_id`, `missed_player_id`) but not player names. Narratives say "the player you missed" instead of actual names. Need to resolve names via `player_map` during narrative generation.
+
 ### Phase 3: The "Regret UI" (Frontend) — IN PROGRESS
 
 **3.1 Team Selection**
