@@ -46,17 +46,41 @@ async def health_check():
 async def get_teams():
     """Get all teams in the league."""
     from app.models import LeagueWeeklyRoster
-    from sqlalchemy import select, func, distinct
-    
+    from sqlalchemy import select, distinct
+
     from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(distinct(LeagueWeeklyRoster.team_id))
             .where(LeagueWeeklyRoster.season_year == settings.season_year)
+            .order_by(LeagueWeeklyRoster.team_id)
         )
         teams = result.scalars().all()
-        
+
         return {"teams": teams}
+
+
+@app.get("/api/teams/options", response_class=HTMLResponse)
+async def get_teams_options():
+    """Return team options as HTML for HTMX select population."""
+    from app.models import LeagueWeeklyRoster
+    from sqlalchemy import select, distinct
+
+    from app.db import async_session
+    async with async_session() as session:
+        result = await session.execute(
+            select(distinct(LeagueWeeklyRoster.team_id))
+            .where(LeagueWeeklyRoster.season_year == settings.season_year)
+            .order_by(LeagueWeeklyRoster.team_id)
+        )
+        teams = sorted(result.scalars().all())
+
+    html = '<option value="">-- Select Your Team --</option>\n'
+    for team in teams:
+        # Extract team number from "461.l.186782.t.7" format
+        team_num = team.split(".")[-1] if "." in team else team
+        html += f'<option value="{team}">Team {team_num}</option>\n'
+    return html
 
 
 @app.get("/api/team/{team_id}/summary")

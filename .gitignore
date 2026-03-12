@@ -30,6 +30,9 @@ env/
 .env
 .env.local
 
+# Cache
+.cache/
+
 # Database
 *.db
 *.sqlite

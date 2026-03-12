@@ -19,13 +19,14 @@
                 <!-- Team Selection Dropdown -->
                 <div class="flex items-center space-x-4">
                     <label for="team-select" class="text-sm text-gray-300">Select Your Team:</label>
-                    <select 
-                        id="team-select" 
+                    <select
+                        id="team-select"
                         name="team-select"
                         class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-w-[200px]"
-                        hx-get="/api/teams"
+                        hx-get="/api/teams/options"
                         hx-target="#team-select"
                         hx-trigger="load"
+                        hx-swap="innerHTML"
                     >
                         <option value="">Loading teams...</option>
                     </select>
@@ -158,30 +159,66 @@
     </main>
 </div>
 
-<!-- HTMX Script for Team Selection -->
+<!-- Script for Team Selection -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const teamSelect = document.getElementById('team-select');
-    
-    teamSelect.addEventListener('change', function() {
+
+    teamSelect.addEventListener('change', async function() {
         const teamId = this.value;
-        
-        if (teamId) {
-            // Show loading state
-            document.getElementById('loading-state').classList.add('hidden');
-            document.getElementById('team-dashboard').classList.remove('hidden');
-            
-            // Fetch team summary
-            htmx.ajax('GET', `/api/team/${teamId}/summary`, {
-                target: '#summary-cards',
-                swap: 'innerHTML'
-            });
-            
-            // Fetch spotlight cards
-            htmx.ajax('GET', `/api/team/${teamId}/regrets`, {
-                target: '#spotlight-cards',
-                swap: 'innerHTML'
-            });
+        if (!teamId) return;
+
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('team-dashboard').classList.remove('hidden');
+
+        // Fetch and render summary
+        try {
+            const summaryRes = await fetch(`/api/team/${teamId}/summary`);
+            const summary = await summaryRes.json();
+            document.getElementById('total-regrets').textContent = summary.total_regrets;
+            document.getElementById('total-points-lost').textContent = summary.total_points_lost.toFixed(1);
+            document.getElementById('avg-regret').textContent = summary.avg_regret_per_mistake.toFixed(1);
+        } catch (e) {
+            console.error('Failed to load summary:', e);
+        }
+
+        // Fetch and render top regrets
+        try {
+            const regretsRes = await fetch(`/api/team/${teamId}/all-regrets`);
+            const data = await regretsRes.json();
+            const container = document.getElementById('spotlight-cards');
+
+            if (!data.all_regrets || data.all_regrets.length === 0) {
+                container.innerHTML = '<div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center text-gray-500"><p>No regret data found for this team</p></div>';
+                return;
+            }
+
+            container.innerHTML = data.all_regrets.slice(0, 6).map(regret => {
+                const type = regret.metric_type || regret.type || 'unknown';
+                const labels = { draft: 'DRAFT REGRET', waiver: 'WAIVER MISS', start_sit: 'START/SIT' };
+                const colors = { draft: 'blue', waiver: 'purple', start_sit: 'orange' };
+                const color = colors[type] || 'gray';
+                const label = labels[type] || type.toUpperCase();
+                const score = (regret.regret_score || regret.points_delta || 0).toFixed(1);
+                const narrative = regret.narrative || regret.description || JSON.stringify(regret).slice(0, 120);
+                const week = regret.week ? `Week ${regret.week}` : 'Season';
+
+                return `
+                <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden hover:border-${color}-500/50 transition-colors">
+                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900/50 border-b border-gray-700">
+                        <span class="text-xs font-semibold text-${color}-400 uppercase tracking-wider">${label}</span>
+                        <span class="text-xs text-gray-400">${week}</span>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-gray-300 text-sm mb-3">${narrative}</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-red-400 font-bold text-lg">${score} pts lost</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load regrets:', e);
         }
     });
 });
