@@ -1,0 +1,16 @@
+.venv/
+.git/
+.env
+.env.local
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+.vscode/
+.idea/
+app/oauth2.json
