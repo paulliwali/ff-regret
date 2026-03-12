@@ -96,32 +96,77 @@ async def get_teams_options():
 
 @app.get("/api/team/{team_id}/summary")
 async def get_team_summary(team_id: str):
-    """Get regret summary for a team."""
+    """Get regret summary for a team, plus league-wide ranges."""
     from app.models import RegretMetric
-    from sqlalchemy import select, func, case, literal_column
-    
+    from sqlalchemy import select, func
+
     from app.db import async_session
     async with async_session() as session:
+        score_filter = RegretMetric.regret_score > 0
+
+        # Team-specific summary
         result = await session.execute(
             select(
                 func.count(RegretMetric.id).label("total_regrets"),
                 func.sum(RegretMetric.regret_score).label("total_points_lost"),
-                func.avg(RegretMetric.regret_score).label("avg_regret_per_mistake")
             )
             .where(RegretMetric.team_id == team_id)
-            .where(RegretMetric.regret_score > 0)
+            .where(score_filter)
         )
         summary = result.first()
-        
-        if summary:
-            return {
-                "team_id": team_id,
-                "total_regrets": summary.total_regrets or 0,
-                "total_points_lost": float(summary.total_points_lost or 0),
-                "avg_regret_per_mistake": float(summary.avg_regret_per_mistake or 0)
-            }
-        
-        return {"team_id": team_id, "total_regrets": 0, "total_points_lost": 0, "avg_regret_per_mistake": 0}
+
+        # League-wide ranges (per-team aggregates)
+        team_stats = (
+            select(
+                RegretMetric.team_id,
+                func.count(RegretMetric.id).label("cnt"),
+                func.sum(RegretMetric.regret_score).label("pts"),
+            )
+            .where(score_filter)
+            .group_by(RegretMetric.team_id)
+        ).subquery()
+
+        league_result = await session.execute(
+            select(
+                func.min(team_stats.c.cnt).label("min_regrets"),
+                func.max(team_stats.c.cnt).label("max_regrets"),
+                func.min(team_stats.c.pts).label("min_points"),
+                func.max(team_stats.c.pts).label("max_points"),
+            )
+        )
+        league = league_result.first()
+
+        # Total points scored: sum actual_points from start_sit data_payload
+        startsit_result = await session.execute(
+            select(RegretMetric.team_id, RegretMetric.data_payload)
+            .where(RegretMetric.metric_type == "start_sit")
+        )
+        all_startsit = startsit_result.all()
+
+        # Aggregate per team
+        team_scored_map: dict[str, float] = {}
+        for row_team_id, payload in all_startsit:
+            pts = float(payload.get("actual_points", 0))
+            team_scored_map[row_team_id] = team_scored_map.get(row_team_id, 0) + pts
+
+        team_scored = team_scored_map.get(team_id, 0)
+        scored_values = list(team_scored_map.values())
+        scored_range = (min(scored_values), max(scored_values)) if scored_values else (0, 0)
+
+        return {
+            "team_id": team_id,
+            "total_regrets": summary.total_regrets or 0 if summary else 0,
+            "total_points_lost": float(summary.total_points_lost or 0) if summary else 0,
+            "total_scored": team_scored,
+            "league_range": {
+                "regrets": [int(league.min_regrets or 0), int(league.max_regrets or 0)],
+                "points_lost": [float(league.min_points or 0), float(league.max_points or 0)],
+                "scored": [
+                    float(scored_range[0] or 0) if scored_range else 0,
+                    float(scored_range[1] or 0) if scored_range else 0,
+                ],
+            } if league else None,
+        }
 
 
 @app.get("/api/team/{team_id}/draft-regrets")

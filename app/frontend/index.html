@@ -15,7 +15,7 @@
                         <p class="text-xs text-gray-400">The "What If" Generator</p>
                     </div>
                 </div>
-                
+
                 <!-- Team Selection Dropdown -->
                 <div class="flex items-center space-x-4">
                     <label for="team-select" class="text-sm text-gray-300">Select Your Team:</label>
@@ -37,7 +37,7 @@
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         <!-- Loading State -->
         <div id="loading-state" class="text-center py-20">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -46,11 +46,11 @@
 
         <!-- Team Dashboard (hidden by default) -->
         <div id="team-dashboard" class="hidden">
-            
+
             <!-- Season Summary Section -->
             <div class="mb-12">
                 <h2 class="text-3xl font-bold text-white mb-6">Season Regret Summary</h2>
-                
+
                 <!-- Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8" id="summary-cards">
                     <!-- Total Regrets Card -->
@@ -61,8 +61,9 @@
                         </div>
                         <p class="text-4xl font-bold text-white mb-2" id="total-regrets">0</p>
                         <p class="text-sm text-gray-400">Decisions you'd take back</p>
+                        <p class="text-xs text-gray-500 mt-2" id="range-regrets"></p>
                     </div>
-                    
+
                     <!-- Points Lost Card -->
                     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
                         <div class="flex items-center justify-between mb-2">
@@ -71,36 +72,36 @@
                         </div>
                         <p class="text-4xl font-bold text-red-400 mb-2" id="total-points-lost">0.0</p>
                         <p class="text-sm text-gray-400">Total fantasy points missed</p>
+                        <p class="text-xs text-gray-500 mt-2" id="range-points"></p>
                     </div>
-                    
-                    <!-- Avg Regret Card -->
+
+                    <!-- Total Points Scored Card -->
                     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
                         <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-semibold text-gray-300">Avg Per Mistake</h3>
+                            <h3 class="text-lg font-semibold text-gray-300">Season Points Scored</h3>
                             <span class="text-2xl">📊</span>
                         </div>
-                        <p class="text-4xl font-bold text-yellow-400 mb-2" id="avg-regret">0.0</p>
-                        <p class="text-sm text-gray-400">Average points lost per decision</p>
+                        <p class="text-4xl font-bold text-green-400 mb-2" id="total-scored">0.0</p>
+                        <p class="text-sm text-gray-400">Your total fantasy points</p>
+                        <!-- League range bar -->
+                        <div class="mt-3" id="scored-range-container" style="display:none;">
+                            <div class="flex justify-between text-xs text-gray-500 mb-1">
+                                <span id="scored-min">0</span>
+                                <span id="scored-max">0</span>
+                            </div>
+                            <div class="relative h-2 bg-gray-700 rounded-full">
+                                <div id="scored-bar" class="absolute h-2 bg-green-500/30 rounded-full" style="left:0%;right:0%"></div>
+                                <div id="scored-marker" class="absolute w-2 h-2 bg-green-400 rounded-full" style="left:0%"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- The One That Got Away Section -->
-            <div class="mb-12">
-                <h2 class="text-3xl font-bold text-white mb-6">"The One That Got Away" Spotlight</h2>
-                
-                <!-- Top Regrets Carousel -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="spotlight-cards">
-                    <!-- Cards will be loaded here via HTMX -->
-                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center text-gray-500">
-                        <p>Select your team to see your worst decisions</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Regret Pillars Deep Dive -->
+            <!-- Regret Pillars -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
+
                 <!-- Draft Regret -->
                 <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
                     <div class="flex items-center justify-between mb-4">
@@ -124,7 +125,7 @@
                         <h3 class="text-xl font-bold text-white">Waiver Regret</h3>
                         <span class="text-3xl">🔍</span>
                     </div>
-                    <p class="text-gray-400 mb-4">Missed opportunities on the waiver wire</p>
+                    <p class="text-gray-400 mb-4">Free agents you should have signed</p>
                     <button
                         id="btn-waiver-regrets"
                         class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
@@ -226,48 +227,21 @@ document.addEventListener('DOMContentLoaded', function() {
             const summary = await summaryRes.json();
             document.getElementById('total-regrets').textContent = summary.total_regrets;
             document.getElementById('total-points-lost').textContent = summary.total_points_lost.toFixed(1);
-            document.getElementById('avg-regret').textContent = summary.avg_regret_per_mistake.toFixed(1);
+            document.getElementById('total-scored').textContent = summary.total_scored.toFixed(1);
+            if (summary.league_range) {
+                const r = summary.league_range;
+                document.getElementById('range-regrets').textContent = `League: ${r.regrets[0]}–${r.regrets[1]}`;
+                document.getElementById('range-points').textContent = `League: ${r.points_lost[0].toFixed(0)}–${r.points_lost[1].toFixed(0)}`;
+                // Scored range bar
+                const min = r.scored[0], max = r.scored[1];
+                const pct = max > min ? ((summary.total_scored - min) / (max - min)) * 100 : 50;
+                document.getElementById('scored-min').textContent = min.toFixed(0);
+                document.getElementById('scored-max').textContent = max.toFixed(0);
+                document.getElementById('scored-marker').style.left = `${Math.max(0, Math.min(100, pct))}%`;
+                document.getElementById('scored-range-container').style.display = 'block';
+            }
         } catch (e) {
             console.error('Failed to load summary:', e);
-        }
-
-        // Fetch and render top regrets
-        try {
-            const regretsRes = await fetch(`/api/team/${teamId}/all-regrets`);
-            const data = await regretsRes.json();
-            const container = document.getElementById('spotlight-cards');
-
-            if (!data.all_regrets || data.all_regrets.length === 0) {
-                container.innerHTML = '<div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center text-gray-500"><p>No regret data found for this team</p></div>';
-                return;
-            }
-
-            container.innerHTML = data.all_regrets.slice(0, 6).map(regret => {
-                const type = regret.metric_type || 'unknown';
-                const labels = { draft: 'DRAFT REGRET', waiver: 'WAIVER MISS', start_sit: 'START/SIT' };
-                const colors = { draft: 'blue', waiver: 'purple', start_sit: 'orange' };
-                const color = colors[type] || 'gray';
-                const label = labels[type] || type.toUpperCase();
-                const score = (regret.regret_score || 0).toFixed(1);
-                const narrative = regret.narrative || '';
-                const week = regret.week ? `Week ${regret.week}` : 'Season';
-
-                return `
-                <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden hover:border-${color}-500/50 transition-colors">
-                    <div class="flex items-center justify-between px-4 py-2 bg-gray-900/50 border-b border-gray-700">
-                        <span class="text-xs font-semibold text-${color}-400 uppercase tracking-wider">${label}</span>
-                        <span class="text-xs text-gray-400">${week}</span>
-                    </div>
-                    <div class="p-4">
-                        <p class="text-gray-300 text-sm mb-3">${narrative}</p>
-                        <div class="flex items-center justify-between">
-                            <span class="text-red-400 font-bold text-lg">${score} pts lost</span>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-        } catch (e) {
-            console.error('Failed to load regrets:', e);
         }
     });
 });
