@@ -1,11 +1,13 @@
+import logging
+import os
 from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import async_session, init_db, get_db
 from app.config import settings
 import uvicorn
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Fantasy Football Regret Engine",
@@ -18,7 +20,16 @@ templates = Jinja2Templates(directory="app/frontend")
 
 @app.on_event("startup")
 async def startup_event():
-    await init_db()
+    logger.info("Starting Fantasy Football Regret Engine...")
+    logger.info(f"PORT={os.environ.get('PORT', 'not set')}")
+    logger.info(f"DATABASE_URL set: {bool(os.environ.get('DATABASE_URL'))}")
+    try:
+        from app.db import init_db
+        await init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        logger.info("App will start but DB features may not work")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -37,6 +48,7 @@ async def get_teams():
     from app.models import LeagueWeeklyRoster
     from sqlalchemy import select, func, distinct
     
+    from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(distinct(LeagueWeeklyRoster.team_id))
@@ -53,6 +65,7 @@ async def get_team_summary(team_id: str):
     from app.models import RegretMetric
     from sqlalchemy import select, func, case, literal_column
     
+    from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(
@@ -81,6 +94,7 @@ async def get_draft_regrets(team_id: str):
     from app.models import RegretMetric
     from sqlalchemy import select
     
+    from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(RegretMetric)
@@ -99,6 +113,7 @@ async def get_waiver_regrets(team_id: str, week: int = None):
     from app.models import RegretMetric
     from sqlalchemy import select
     
+    from app.db import async_session
     async with async_session() as session:
         query = (
             select(RegretMetric)
@@ -123,6 +138,7 @@ async def get_startsit_regrets(team_id: str, week: int = None):
     from app.models import RegretMetric
     from sqlalchemy import select
     
+    from app.db import async_session
     async with async_session() as session:
         query = (
             select(RegretMetric)
@@ -147,6 +163,7 @@ async def get_all_regrets(team_id: str):
     from app.models import RegretMetric
     from sqlalchemy import select, case, literal_column
     
+    from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(RegretMetric)
