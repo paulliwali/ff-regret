@@ -1,13 +1,12 @@
 # Fantasy Football Regret Engine
 
-An interactive web application for Yahoo Fantasy Football managers to visualize the "what-ifs" of their previous season.
+Three ways to regret your fantasy football season — whether you drafted the wrong player, picked up the wrong player, or started the wrong player.
 
 ## Features
 
 - **Draft Regret**: See who you should have drafted instead
-- **Waiver Regret**: Discover missed opportunities on the waiver wire
-- **Start/Sit Regret**: Optimize your weekly lineup decisions
-- **"The One That Got Away" Spotlight**: Narrative-driven cards telling the story of your worst decisions
+- **Waiver Regret**: Free agents you should have signed, ranked by rest-of-season impact
+- **Start/Sit Regret**: Weekly lineup decisions that cost you points
 
 ## Tech Stack
 
@@ -26,17 +25,20 @@ An interactive web application for Yahoo Fantasy Football managers to visualize 
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <repo-url>
 cd ff-regret
 ```
 
-2. Install dependencies:
+1. Install dependencies:
+
 ```bash
 uv sync
 ```
 
-3. Configure environment variables:
+1. Configure environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your Yahoo Fantasy API credentials
@@ -68,13 +70,15 @@ DATABASE_URL=sqlite+aiosqlite:///./ff_regret.db
 ### Running the Application
 
 1. Start the FastAPI server:
+
 ```bash
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. Access the API:
-- API docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
+1. Access the API:
+
+- API docs: <http://localhost:8000/docs>
+- Health check: <http://localhost:8000/health>
 
 ### Initializing Data
 
@@ -85,6 +89,7 @@ uv run python scripts/initialize_data.py
 ```
 
 This will:
+
 1. Fetch Yahoo Fantasy League data (draft, rosters, waiver wire)
 2. Fetch NFL game logs and player data
 3. Map Yahoo player IDs to NFL IDs
@@ -109,11 +114,13 @@ uv run mypy app/
 ### Prerequisites
 
 1. Install Railway CLI:
+
 ```bash
 npm install -g @railway/cli
 ```
 
-2. Login:
+1. Login:
+
 ```bash
 railway login
 ```
@@ -121,16 +128,19 @@ railway login
 ### Deployment Steps
 
 1. Initialize Railway project:
+
 ```bash
 railway init
 ```
 
-2. Add PostgreSQL service:
+1. Add PostgreSQL service:
+
 ```bash
 railway add postgresql
 ```
 
-3. Set environment variables:
+1. Set environment variables:
+
 ```bash
 railway variables set DATABASE_URL=$DATABASE_URL
 railway variables set YAHOO_CONSUMER_KEY=$YAHOO_CONSUMER_KEY
@@ -140,12 +150,14 @@ railway variables set YAHOO_ACCESS_TOKEN_SECRET=$YAHOO_ACCESS_TOKEN_SECRET
 railway variables set YAHOO_LEAGUE_ID=$YAHOO_LEAGUE_ID
 ```
 
-4. Deploy:
+1. Deploy:
+
 ```bash
 railway up
 ```
 
-5. Initialize data:
+1. Initialize data:
+
 ```bash
 railway run python scripts/initialize_data.py
 ```

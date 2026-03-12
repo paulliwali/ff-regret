@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Interactive web app for Yahoo Fantasy Football managers to visualize their season's worst decisions across three "Pillars of Regret": Draft picks, Waiver Wire misses, and Start/Sit blunders. Single league ("The Newer CFL" — 14 teams, game ID `461`, league ID `186782`).
+Three ways to regret your fantasy football season — whether you drafted the wrong player, picked up the wrong player, or started the wrong player. Built for Yahoo Fantasy Football managers in a single league ("The Newer CFL" — 14 teams, game ID `461`, league ID `186782`).
 
 ## Tech Stack
 

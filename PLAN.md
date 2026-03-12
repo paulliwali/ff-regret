@@ -168,9 +168,19 @@ An interactive web application for Yahoo Fantasy Football managers to visualize 
 
 ### Known Data Issues — TO FIX
 
-**Start/Sit & Waiver regrets were broken — FIXED**: Root cause was an int/str type mismatch. Roster snapshot stored `player_id` as int (e.g., `30971`) but `player_map.yahoo_id` is str (`"30971"`). Dict lookups silently returned no match, so all points resolved to 0. Fix: `str(player["player_id"])` in `regret_engine.py`. After fix: 238 start_sit rows (avg 24.2 pts), 511 waiver rows (avg 10.6 pts). Local DB recalculated; **Railway Postgres needs recalculation** (`DATABASE_URL=... uv run python scripts/calculate_regrets.py`).
+**Start/Sit & Waiver regrets were broken — FIXED**: Root cause was an int/str type mismatch. Roster snapshot stored `player_id` as int but `player_map.yahoo_id` is str. Fix: `str(player["player_id"])` in `regret_engine.py`.
 
-**Draft regret narratives lack player names**: `data_payload` stores Yahoo player IDs (`drafted_player_id`, `missed_player_id`) but not player names. Narratives say "the player you missed" instead of actual names. Need to resolve names via `player_map` during narrative generation.
+**Draft narratives now include player names — FIXED**: `generate_narrative` resolves yahoo_id → name via `player_map`.
+
+**Real waiver regret implemented — DONE**: Finds best available FA by ROS points vs team's worst rostered player at that position.
+
+### TODO — Next Iteration
+
+**Start/Sit regret should show specific bench swaps**: Currently shows total optimal-vs-actual delta per week. Should instead pick one position per week where a bench player would have outscored the starter (the old "waiver" calculator logic). Show the specific player swap, not just aggregate points.
+
+**Draft & Waiver regrets should compare within same position**: Currently both pillars can suggest a QB as the "missed" player regardless of what position was drafted/rostered, because QBs outscore other positions. The comparison should be restricted to the same position — e.g., if you drafted an RB, show the better RB you missed, not a QB.
+
+**League range bars for Total Regrets and Points Left on Table**: The "Season Points Scored" card has a proper range bar visualization, but "Total Regrets" and "Points Left on Table" only show text ranges (`League: X–Y`). Implement the same bar + marker UI for consistency.
 
 ### Phase 3: The "Regret UI" (Frontend) — IN PROGRESS
 
