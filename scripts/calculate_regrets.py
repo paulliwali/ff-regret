@@ -66,8 +66,11 @@ async def calculate_and_store_team_regrets(session: AsyncSession, team_id: str):
                 "overall_pick": draft_regret["overall_pick"],
                 "round": draft_regret["round"],
                 "drafted_player_id": draft_regret["drafted_player_id"],
+                "drafted_player_name": draft_regret["drafted_player_name"],
                 "drafted_player_points": draft_regret["drafted_player_points"],
+                "drafted_position": draft_regret.get("drafted_position", ""),
                 "missed_player_id": draft_regret["missed_player_id"],
+                "missed_player_name": draft_regret["missed_player_name"],
                 "missed_player_points": draft_regret["missed_player_points"],
                 "narrative": narrative
             }
@@ -98,6 +101,7 @@ async def calculate_and_store_team_regrets(session: AsyncSession, team_id: str):
     for week, week_data in weekly_regrets.items():
         startsit_data = week_data.get("startsit_regret", {})
         if startsit_data and startsit_data.get("points_delta", 0) > 0:
+            swaps = startsit_data.get("swaps", [])
             await store_regret_metrics(
                 session=session,
                 team_id=team_id,
@@ -107,6 +111,7 @@ async def calculate_and_store_team_regrets(session: AsyncSession, team_id: str):
                 data_payload={
                     "actual_points": startsit_data["actual_points"],
                     "optimal_points": startsit_data["optimal_points"],
+                    "swaps": swaps,
                     "narrative": engine.startsit_calculator.generate_narrative(startsit_data, week)
                 }
             )

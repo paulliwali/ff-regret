@@ -24,12 +24,12 @@ class DraftRegretCalculator:
     
     async def calculate_draft_regret(self, team_id: str) -> List[Dict[str, Any]]:
         """Calculate top 3 draft regrets for a team.
-        
+
         For each draft pick, identify players drafted within ±3 picks
-        and calculate the delta in season points.
+        at the same position and calculate the delta in season points.
         """
         from app.models import LeagueDraftResult, PlayerMap, NflGameLog
-        
+
         # Get team's draft picks
         result = await self.session.execute(
             select(LeagueDraftResult)
@@ -37,73 +37,92 @@ class DraftRegretCalculator:
             .order_by(LeagueDraftResult.overall_pick)
         )
         team_picks = result.scalars().all()
-        
+
         # Get all draft picks for comparison
         result = await self.session.execute(
             select(LeagueDraftResult)
             .order_by(LeagueDraftResult.overall_pick)
         )
         all_picks = result.scalars().all()
-        
-        # Get player mappings
+
+        # Get player mappings (yahoo_id -> gsis_id and position)
         result = await self.session.execute(select(PlayerMap))
-        player_maps = {row.yahoo_id: row.gsis_id for row in result.scalars().all()}
-        
-        # Get all NFL game logs for season
+        player_map_rows = result.scalars().all()
+        player_maps = {row.yahoo_id: row.gsis_id for row in player_map_rows}
+        player_names = {row.yahoo_id: row.full_name for row in player_map_rows}
+
+        # Get all NFL game logs for season (points + positions)
         result = await self.session.execute(select(NflGameLog))
         game_logs = result.scalars().all()
-        
-        # Calculate season points for each player
-        player_season_points = {}
+
+        # Calculate season points and extract positions for each player
+        player_season_points: Dict[str, float] = {}
+        player_positions: Dict[str, str] = {}
         for log in game_logs:
             player_id = log.player_id
             points = log.fantasy_points
             if player_id not in player_season_points:
                 player_season_points[player_id] = 0
             player_season_points[player_id] += points
-        
+            if log.raw_stats and "position" in log.raw_stats:
+                player_positions[player_id] = log.raw_stats["position"]
+
+        # Build yahoo_id -> position lookup via gsis_id
+        yahoo_positions: Dict[str, str] = {}
+        for yahoo_id, gsis_id in player_maps.items():
+            if gsis_id in player_positions:
+                yahoo_positions[yahoo_id] = player_positions[gsis_id]
+
         regrets = []
-        
+
         for pick in team_picks:
             yahoo_id = pick.player_id
             gsis_id = player_maps.get(yahoo_id)
-            
+
             if not gsis_id:
                 logger.warning(f"No GSIS ID found for Yahoo ID {yahoo_id}")
                 continue
-            
+
             drafted_points = player_season_points.get(gsis_id, 0)
-            
-            # Find players drafted within ±3 picks
+            drafted_position = yahoo_positions.get(yahoo_id, "")
+
+            # Find players drafted within ±3 picks at the same position
             nearby_picks = [
-                p for p in all_picks 
-                if abs(p.overall_pick - pick.overall_pick) <= 3 and p.player_id != yahoo_id
+                p for p in all_picks
+                if abs(p.overall_pick - pick.overall_pick) <= 3
+                and p.player_id != yahoo_id
+                and yahoo_positions.get(p.player_id, "") == drafted_position
             ]
-            
+
             for nearby_pick in nearby_picks:
                 nearby_yahoo_id = nearby_pick.player_id
                 nearby_gsis_id = player_maps.get(nearby_yahoo_id)
-                
+
                 if not nearby_gsis_id:
                     continue
-                
+
                 nearby_points = player_season_points.get(nearby_gsis_id, 0)
-                
+
                 # Calculate delta (negative means you made a good pick)
                 delta = nearby_points - drafted_points
-                
+
                 if delta > 0:  # Only track misses
                     regrets.append({
                         "overall_pick": pick.overall_pick,
                         "round": pick.round,
                         "drafted_player_id": yahoo_id,
+                        "drafted_player_name": player_names.get(yahoo_id, f"Player #{yahoo_id}"),
                         "drafted_player_points": drafted_points,
+                        "drafted_position": drafted_position,
                         "missed_player_id": nearby_yahoo_id,
+                        "missed_player_name": player_names.get(
+                            nearby_yahoo_id, f"Player #{nearby_yahoo_id}"
+                        ),
                         "missed_player_points": nearby_points,
                         "points_delta": delta,
                         "pick_distance": abs(nearby_pick.overall_pick - pick.overall_pick)
                     })
-        
+
         # Sort by delta and keep top 3
         regrets.sort(key=lambda x: x["points_delta"], reverse=True)
         return regrets[:3]
@@ -361,26 +380,72 @@ class StartSitRegretCalculator:
         
         # Compare lineups
         comparison = self.optimizer.compare_lineups(team_players, optimal_result)
-        
+
+        # Build specific swap details: which bench player should replace which starter
+        swaps = []
+        should_bench_ids = comparison.get("should_bench", set())
+        should_start_ids = comparison.get("should_start", set())
+
+        # Map player_id -> player info for quick lookup
+        player_by_id = {p["player_id"]: p for p in team_players}
+
+        benched_list = sorted(
+            [player_by_id[pid] for pid in should_bench_ids if pid in player_by_id],
+            key=lambda p: p["points"],
+        )
+        started_list = sorted(
+            [player_by_id[pid] for pid in should_start_ids if pid in player_by_id],
+            key=lambda p: p["points"],
+            reverse=True,
+        )
+
+        for bench_player, start_player in zip(benched_list, started_list):
+            swaps.append({
+                "bench_player_id": bench_player["player_id"],
+                "bench_player_name": bench_player.get("name", ""),
+                "bench_player_points": bench_player["points"],
+                "bench_position": bench_player.get("actual_position", ""),
+                "start_player_id": start_player["player_id"],
+                "start_player_name": start_player.get("name", ""),
+                "start_player_points": start_player["points"],
+                "swap_delta": start_player["points"] - bench_player["points"],
+            })
+
         return {
             "actual_points": actual_points,
             "optimal_points": optimal_points,
             "points_delta": optimal_points - actual_points,
             "comparison": comparison,
+            "swaps": swaps,
             "team_players": team_players
         }
     
     def generate_narrative(self, regret: Dict[str, Any], week: int) -> str:
         """Generate narrative for start/sit regret spotlight card."""
         comparison = regret.get("comparison", {})
-        
+        swaps = regret.get("swaps", [])
+
         if comparison.get("improvement_percentage", 0) > 20:
             severity = "Brutal"
         elif comparison.get("improvement_percentage", 0) > 10:
             severity = "Costly"
         else:
             severity = "Minor"
-        
+
+        if swaps:
+            top_swap = swaps[0]
+            narrative = (
+                f"Week {week}: {severity} lineup decision. "
+                f"You started {top_swap['bench_player_name']} "
+                f"({top_swap['bench_player_points']:.1f} pts) over "
+                f"{top_swap['start_player_name']} "
+                f"({top_swap['start_player_points']:.1f} pts) on your bench. "
+                f"That's {top_swap['swap_delta']:.1f} points left on the table."
+            )
+            if len(swaps) > 1:
+                narrative += f" ({len(swaps)} total swaps would have helped.)"
+            return narrative
+
         return (
             f"Week {week}: {severity} lineup decision. Your starters scored "
             f"{regret['actual_points']:.1f} points, but the optimal lineup "

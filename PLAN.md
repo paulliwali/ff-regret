@@ -176,11 +176,11 @@ An interactive web application for Yahoo Fantasy Football managers to visualize 
 
 ### TODO — Next Iteration
 
-**Start/Sit regret should show specific bench swaps**: Currently shows total optimal-vs-actual delta per week. Should instead pick one position per week where a bench player would have outscored the starter (the old "waiver" calculator logic). Show the specific player swap, not just aggregate points.
+**Start/Sit regret should show specific bench swaps — DONE**: Now stores specific swap details (which bench player should replace which starter) in `data_payload.swaps`. Narrative highlights the biggest swap by name and points. Falls back to aggregate narrative if no swaps found.
 
-**Draft & Waiver regrets should compare within same position**: Currently both pillars can suggest a QB as the "missed" player regardless of what position was drafted/rostered, because QBs outscore other positions. The comparison should be restricted to the same position — e.g., if you drafted an RB, show the better RB you missed, not a QB.
+**Draft & Waiver regrets should compare within same position — DONE**: Draft regret now filters nearby picks to the same position (via `raw_stats.position` from game logs). Waiver regret was already position-matched. Draft payload now includes `drafted_position`, `drafted_player_name`, and `missed_player_name`.
 
-**League range bars for Total Regrets and Points Left on Table**: The "Season Points Scored" card has a proper range bar visualization, but "Total Regrets" and "Points Left on Table" only show text ranges (`League: X–Y`). Implement the same bar + marker UI for consistency.
+**League range bars for Total Regrets and Points Left on Table — DONE**: All three summary cards now have consistent bar + marker UI showing the team's position within the league range.
 
 ### Phase 3: The "Regret UI" (Frontend) — IN PROGRESS
 
