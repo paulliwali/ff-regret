@@ -131,10 +131,10 @@
                     <p class="text-gray-400 mb-4">Draft picks that haunted your season</p>
                     <button
                         id="btn-draft-regrets"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                        class="w-full bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 font-medium py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                         disabled
                     >
-                        View Draft Regrets
+                        Reload
                     </button>
                     <div id="draft-regrets-content" class="mt-4"></div>
                 </div>
@@ -148,10 +148,10 @@
                     <p class="text-gray-400 mb-4">Free agents you should have signed</p>
                     <button
                         id="btn-waiver-regrets"
-                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                        class="w-full bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 font-medium py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                         disabled
                     >
-                        View Waiver Regrets
+                        Reload
                     </button>
                     <div id="waiver-regrets-content" class="mt-4"></div>
                 </div>
@@ -165,10 +165,10 @@
                     <p class="text-gray-400 mb-4">Lineup decisions that cost you wins</p>
                     <button
                         id="btn-startsit-regrets"
-                        class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                        class="w-full bg-orange-600/20 hover:bg-orange-600/40 text-orange-300 font-medium py-1.5 px-4 rounded-lg transition-colors text-sm disabled:opacity-50"
                         disabled
                     >
-                        View Start/Sit Regrets
+                        Reload
                     </button>
                     <div id="startsit-regrets-content" class="mt-4"></div>
                 </div>
@@ -183,23 +183,137 @@ document.addEventListener('DOMContentLoaded', function() {
     const teamSelect = document.getElementById('team-select');
     let currentTeamId = null;
 
-    function renderRegretList(regrets, containerId) {
+    function severityClass(delta) {
+        if (delta > 50) return ['bg-red-500/20 border-red-500/40', 'HIGH'];
+        if (delta > 25) return ['bg-orange-500/20 border-orange-500/40', 'MED'];
+        return ['bg-yellow-500/20 border-yellow-500/40', 'LOW'];
+    }
+
+    function renderDraftRegrets(regrets, containerId) {
         const container = document.getElementById(containerId);
         if (!regrets || regrets.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-sm">No data available</p>';
+            container.innerHTML = '<p class="text-gray-500 text-sm">No draft regrets found</p>';
             return;
         }
         container.innerHTML = regrets.map(r => {
-            const narrative = r.narrative || '';
-            const score = (r.regret_score || r.points_delta || 0).toFixed(1);
-            const week = r.week ? `Wk ${r.week}` : '';
+            const delta = (r.regret_score || r.points_delta || 0);
+            const [cls, label] = severityClass(delta);
+            const pos = r.drafted_position || '';
             return `
-            <div class="bg-gray-900/50 rounded-lg p-3 mb-2 border border-gray-700/50">
-                <div class="flex justify-between items-start mb-1">
-                    <span class="text-red-400 font-semibold text-sm">${score} pts</span>
-                    ${week ? `<span class="text-gray-500 text-xs">${week}</span>` : ''}
+            <div class="rounded-lg p-4 mb-3 border ${cls}">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-medium text-gray-400">Round ${r.round || '?'}, Pick #${r.overall_pick || '?'}</span>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded ${delta > 50 ? 'bg-red-500/30 text-red-300' : delta > 25 ? 'bg-orange-500/30 text-orange-300' : 'bg-yellow-500/30 text-yellow-300'}">${label}</span>
                 </div>
-                <p class="text-gray-300 text-xs">${narrative}</p>
+                ${pos ? `<span class="text-xs text-gray-500 mb-2 block">${pos}</span>` : ''}
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="bg-red-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">You drafted</p>
+                        <p class="text-sm font-semibold text-white truncate">${r.drafted_player_name || 'Unknown'}</p>
+                        <p class="text-lg font-bold text-red-400">${(r.drafted_player_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">pts</p>
+                    </div>
+                    <div class="bg-green-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Could have had</p>
+                        <p class="text-sm font-semibold text-white truncate">${r.missed_player_name || 'Unknown'}</p>
+                        <p class="text-lg font-bold text-green-400">${(r.missed_player_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">pts</p>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <span class="text-red-400 font-bold text-sm">-${delta.toFixed(1)} pts lost</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderWaiverRegrets(regrets, containerId) {
+        const container = document.getElementById(containerId);
+        if (!regrets || regrets.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-sm">No waiver regrets found</p>';
+            return;
+        }
+        container.innerHTML = regrets.map(r => {
+            const delta = (r.regret_score || r.points_delta || 0);
+            const [cls, label] = severityClass(delta);
+            return `
+            <div class="rounded-lg p-4 mb-3 border ${cls}">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-medium text-gray-400">WEEK ${r.week || '?'} &middot; ${r.fa_position || ''}</span>
+                    <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">${(r.fa_ownership_pct || 0)}% owned</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="bg-red-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">You kept</p>
+                        <p class="text-sm font-semibold text-white truncate">${r.replaced_name || 'Unknown'}</p>
+                        <p class="text-lg font-bold text-red-400">${(r.replaced_ros_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">ROS pts</p>
+                    </div>
+                    <div class="bg-green-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Available FA</p>
+                        <p class="text-sm font-semibold text-white truncate">${r.fa_name || 'Unknown'}</p>
+                        <p class="text-lg font-bold text-green-400">${(r.fa_ros_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">ROS pts</p>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <span class="text-red-400 font-bold text-sm">-${delta.toFixed(1)} pts missed</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderStartSitRegrets(regrets, containerId) {
+        const container = document.getElementById(containerId);
+        if (!regrets || regrets.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-sm">No start/sit regrets found</p>';
+            return;
+        }
+        container.innerHTML = regrets.map(r => {
+            const delta = (r.regret_score || r.points_delta || 0);
+            const [cls, label] = severityClass(delta);
+            const swaps = r.swaps || [];
+            const swapHtml = swaps.length > 0 ? swaps.map(s => `
+                <div class="flex items-center justify-between text-xs py-1 border-b border-gray-700/50 last:border-0">
+                    <div class="flex-1">
+                        <span class="text-red-400">${s.bench_player_name || 'Unknown'}</span>
+                        <span class="text-gray-500 ml-1">${s.bench_player_points.toFixed(1)}</span>
+                    </div>
+                    <span class="text-gray-500 mx-2">&rarr;</span>
+                    <div class="flex-1 text-right">
+                        <span class="text-green-400">${s.start_player_name || 'Unknown'}</span>
+                        <span class="text-gray-500 ml-1">${s.start_player_points.toFixed(1)}</span>
+                    </div>
+                    <span class="text-green-400 font-semibold ml-2 whitespace-nowrap">+${s.swap_delta.toFixed(1)}</span>
+                </div>
+            `).join('') : '';
+
+            return `
+            <div class="rounded-lg p-4 mb-3 border ${cls}">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-medium text-gray-400">WEEK ${r.week || '?'}</span>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded ${delta > 15 ? 'bg-red-500/30 text-red-300' : delta > 8 ? 'bg-orange-500/30 text-orange-300' : 'bg-yellow-500/30 text-yellow-300'}">${label}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="bg-red-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Your lineup</p>
+                        <p class="text-lg font-bold text-red-400">${(r.actual_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">pts</p>
+                    </div>
+                    <div class="bg-green-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Optimal lineup</p>
+                        <p class="text-lg font-bold text-green-400">${(r.optimal_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">pts</p>
+                    </div>
+                </div>
+                ${swapHtml ? `
+                <div class="mt-2 bg-gray-900/50 rounded p-2">
+                    <p class="text-xs text-gray-500 mb-1 font-medium">Swaps that would have helped:</p>
+                    ${swapHtml}
+                </div>` : ''}
+                <div class="text-center mt-2">
+                    <span class="text-red-400 font-bold text-sm">-${delta.toFixed(1)} pts on bench</span>
+                </div>
             </div>`;
         }).join('');
     }
@@ -212,7 +326,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const res = await fetch(`/api/team/${currentTeamId}/${type}-regrets`);
             const data = await res.json();
             const key = Object.keys(data)[0];
-            renderRegretList(data[key], containerId);
+            const regrets = data[key];
+            if (type === 'draft') renderDraftRegrets(regrets, containerId);
+            else if (type === 'waiver') renderWaiverRegrets(regrets, containerId);
+            else if (type === 'startsit') renderStartSitRegrets(regrets, containerId);
         } catch (e) {
             container.innerHTML = '<p class="text-red-400 text-sm">Failed to load</p>';
         }
@@ -236,10 +353,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('btn-waiver-regrets').disabled = false;
         document.getElementById('btn-startsit-regrets').disabled = false;
 
-        // Clear previous deep-dive content
-        document.getElementById('draft-regrets-content').innerHTML = '';
-        document.getElementById('waiver-regrets-content').innerHTML = '';
-        document.getElementById('startsit-regrets-content').innerHTML = '';
+        // Auto-load all pillar deep-dives
+        loadDeepDive('draft', 'draft-regrets-content');
+        loadDeepDive('waiver', 'waiver-regrets-content');
+        loadDeepDive('startsit', 'startsit-regrets-content');
 
         // Fetch and render summary
         try {
