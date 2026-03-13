@@ -119,6 +119,23 @@
                 </div>
             </div>
 
+            <!-- Weekly Timeline -->
+            <div class="mb-12">
+                <h2 class="text-3xl font-bold text-white mb-6">Weekly Regret Timeline</h2>
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div id="timeline-container" class="flex gap-1 overflow-x-auto pb-2">
+                        <p class="text-gray-500 text-sm">Select a team to load timeline</p>
+                    </div>
+                    <!-- Expanded week detail -->
+                    <div id="timeline-detail" class="mt-4 hidden">
+                        <div class="border-t border-gray-700 pt-4">
+                            <h4 class="text-sm font-semibold text-gray-300 mb-3" id="timeline-detail-title"></h4>
+                            <div id="timeline-detail-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Regret Pillars -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -318,6 +335,109 @@ document.addEventListener('DOMContentLoaded', function() {
         }).join('');
     }
 
+    async function loadTimeline() {
+        if (!currentTeamId) return;
+        const container = document.getElementById('timeline-container');
+        container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading timeline...</p>';
+        try {
+            const res = await fetch(`/api/team/${currentTeamId}/weekly-timeline`);
+            const data = await res.json();
+            const { timeline, max_score } = data;
+
+            container.innerHTML = timeline.map(w => {
+                const intensity = max_score > 0 ? w.total_score / max_score : 0;
+                const count = w.regrets.length;
+                // Color: green (no regret) → yellow → orange → red (max regret)
+                let bgColor, borderColor, textColor;
+                if (intensity === 0) {
+                    bgColor = 'bg-green-900/30';
+                    borderColor = 'border-green-700/50';
+                    textColor = 'text-green-400';
+                } else if (intensity < 0.3) {
+                    bgColor = 'bg-yellow-900/30';
+                    borderColor = 'border-yellow-700/50';
+                    textColor = 'text-yellow-400';
+                } else if (intensity < 0.6) {
+                    bgColor = 'bg-orange-900/30';
+                    borderColor = 'border-orange-700/50';
+                    textColor = 'text-orange-400';
+                } else {
+                    bgColor = 'bg-red-900/30';
+                    borderColor = 'border-red-700/50';
+                    textColor = 'text-red-400';
+                }
+                // Bar height proportional to intensity (min 4px, max 64px)
+                const barH = Math.max(4, Math.round(intensity * 64));
+                return `
+                <button class="timeline-week flex flex-col items-center flex-shrink-0 w-14 p-1.5 rounded-lg border ${bgColor} ${borderColor} hover:brightness-125 transition-all cursor-pointer"
+                        data-week="${w.week}" title="Week ${w.week}: ${w.total_score.toFixed(1)} pts regret">
+                    <span class="text-xs text-gray-400 mb-1">Wk ${w.week}</span>
+                    <div class="w-full flex items-end justify-center" style="height:64px;">
+                        <div class="w-6 rounded-t ${intensity === 0 ? 'bg-green-600/40' : intensity < 0.3 ? 'bg-yellow-500/50' : intensity < 0.6 ? 'bg-orange-500/50' : 'bg-red-500/50'}"
+                             style="height:${barH}px;"></div>
+                    </div>
+                    <span class="${textColor} text-xs font-semibold mt-1">${w.total_score > 0 ? w.total_score.toFixed(0) : '-'}</span>
+                    ${count > 0 ? `<span class="text-gray-500 text-[10px]">${count} regret${count > 1 ? 's' : ''}</span>` : ''}
+                </button>`;
+            }).join('');
+
+            // Wire up week click to show detail
+            container.querySelectorAll('.timeline-week').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const week = parseInt(btn.dataset.week);
+                    const weekData = timeline.find(w => w.week === week);
+                    showTimelineDetail(weekData);
+                    // Highlight selected
+                    container.querySelectorAll('.timeline-week').forEach(b => b.classList.remove('ring-2', 'ring-blue-500'));
+                    btn.classList.add('ring-2', 'ring-blue-500');
+                });
+            });
+        } catch (e) {
+            container.innerHTML = '<p class="text-red-400 text-sm">Failed to load timeline</p>';
+        }
+    }
+
+    function showTimelineDetail(weekData) {
+        const detail = document.getElementById('timeline-detail');
+        const title = document.getElementById('timeline-detail-title');
+        const content = document.getElementById('timeline-detail-content');
+
+        if (!weekData || weekData.regrets.length === 0) {
+            title.textContent = `Week ${weekData.week} — No regrets`;
+            content.innerHTML = '<p class="text-green-400 text-sm">Clean week! No points left on the table.</p>';
+            detail.classList.remove('hidden');
+            return;
+        }
+
+        title.textContent = `Week ${weekData.week} — ${weekData.total_score.toFixed(1)} pts regret`;
+        content.innerHTML = weekData.regrets.map(r => {
+            const typeLabel = r.metric_type === 'start_sit' ? 'START/SIT' : r.metric_type.toUpperCase();
+            const typeColor = r.metric_type === 'start_sit' ? 'text-orange-400' : r.metric_type === 'waiver' ? 'text-purple-400' : 'text-blue-400';
+            const swaps = r.swaps || [];
+            const swapHtml = swaps.length > 0 ? swaps.map(s => `
+                <div class="flex items-center text-xs py-0.5">
+                    <span class="text-red-400">${s.bench_player_name}</span>
+                    <span class="text-gray-600 mx-1">${s.bench_player_points.toFixed(1)}</span>
+                    <span class="text-gray-500 mx-1">&rarr;</span>
+                    <span class="text-green-400">${s.start_player_name}</span>
+                    <span class="text-gray-600 mx-1">${s.start_player_points.toFixed(1)}</span>
+                    <span class="text-green-400 font-semibold ml-auto">+${s.swap_delta.toFixed(1)}</span>
+                </div>
+            `).join('') : '';
+
+            return `
+            <div class="bg-gray-900/50 rounded-lg p-3 mb-2 border border-gray-700/50">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="${typeColor} text-xs font-semibold">${typeLabel}</span>
+                    <span class="text-red-400 text-sm font-bold">${r.regret_score.toFixed(1)} pts</span>
+                </div>
+                <p class="text-gray-300 text-xs mb-1">${r.narrative || ''}</p>
+                ${swapHtml ? `<div class="mt-1 border-t border-gray-700/50 pt-1">${swapHtml}</div>` : ''}
+            </div>`;
+        }).join('');
+        detail.classList.remove('hidden');
+    }
+
     async function loadDeepDive(type, containerId) {
         if (!currentTeamId) return;
         const container = document.getElementById(containerId);
@@ -353,7 +473,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('btn-waiver-regrets').disabled = false;
         document.getElementById('btn-startsit-regrets').disabled = false;
 
-        // Auto-load all pillar deep-dives
+        // Auto-load timeline and pillar deep-dives
+        loadTimeline();
+        document.getElementById('timeline-detail').classList.add('hidden');
         loadDeepDive('draft', 'draft-regrets-content');
         loadDeepDive('waiver', 'waiver-regrets-content');
         loadDeepDive('startsit', 'startsit-regrets-content');

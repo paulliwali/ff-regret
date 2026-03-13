@@ -283,6 +283,53 @@ async def get_all_regrets(team_id: str):
         }
 
 
+@app.get("/api/team/{team_id}/weekly-timeline")
+async def get_weekly_timeline(team_id: str):
+    """Get per-week regret summary for timeline visualization."""
+    from app.models import RegretMetric
+    from sqlalchemy import select
+
+    from app.db import async_session
+    async with async_session() as session:
+        result = await session.execute(
+            select(RegretMetric)
+            .where(RegretMetric.team_id == team_id)
+            .where(RegretMetric.week.isnot(None))
+            .where(RegretMetric.regret_score > 0)
+            .order_by(RegretMetric.week)
+        )
+        regrets = result.scalars().all()
+
+        # Group by week
+        weeks: dict[int, dict] = {}
+        for r in regrets:
+            wk = r.week
+            if wk not in weeks:
+                weeks[wk] = {"week": wk, "total_score": 0, "regrets": []}
+            weeks[wk]["total_score"] += r.regret_score
+            weeks[wk]["regrets"].append({
+                "metric_type": r.metric_type,
+                "regret_score": r.regret_score,
+                **r.data_payload,
+            })
+
+        # Build full 1-17 timeline with zeros for quiet weeks
+        timeline = []
+        for wk in range(1, 18):
+            if wk in weeks:
+                timeline.append(weeks[wk])
+            else:
+                timeline.append({"week": wk, "total_score": 0, "regrets": []})
+
+        # Compute max for color scaling
+        max_score = max((w["total_score"] for w in timeline), default=1) or 1
+
+        return {
+            "timeline": timeline,
+            "max_score": max_score,
+        }
+
+
 @app.get("/team/{team_id}")
 async def team_page(team_id: str):
     """Team-specific regret dashboard."""
