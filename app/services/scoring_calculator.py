@@ -9,60 +9,63 @@ class ScoringRulesParser:
     """Parse Yahoo Fantasy scoring configuration into usable scoring rules."""
 
     # Yahoo stat ID to NFL data column mapping
-    # These are the actual stat IDs used by Yahoo Fantasy API
+    # Verified against league scoring page 2024-03-12
     YAHOO_TO_NFL_MAP = {
-        # Passing stats
-        4: ("passing_yards", 0.04),      # Pass Yards
-        5: ("passing_tds", 4.0),         # Pass TDs
-        6: ("passing_ints", -2.0),       # Interceptions
-        25: ("passing_2pt", 2.0),        # 2pt Conversions (passing)
-        29: ("passing_completions", 0.0), # Completions
-        
-        # Rushing stats
-        9: ("rushing_yards", 0.1),      # Rush Yards
-        10: ("rushing_tds", 6.0),        # Rush TDs
-        16: ("rushing_2pt", 2.0),       # 2pt Conversions (rushing)
-        56: ("rushing_fumbles", -2.0),  # Rushing Fumbles
-        
-        # Receiving stats
-        12: ("receiving_yards", 0.1),   # Rec Yards
-        13: ("receiving_tds", 6.0),     # Rec TDs
-        11: ("receptions", 0.5),        # Receptions (PPR)
-        15: ("receiving_2pt", 2.0),     # 2pt Conversions (receiving)
-        18: ("fumbles_lost", -2.0),      # Fumbles Lost
-        
-        # Special teams - Field Goals
-        19: ("kicking_fgm_0_19", 3.0),  # FG Made 0-19
-        20: ("kicking_fgm_20_29", 3.0), # FG Made 20-29
-        21: ("kicking_fgm_30_39", 3.0), # FG Made 30-39
-        22: ("kicking_fgm_40_49", 4.0), # FG Made 40-49
-        23: ("kicking_fgm_50_plus", 5.0), # FG Made 50+
-        24: ("kicking_fga", 0.0),        # Field Goals Attempted
-        26: ("kicking_xpm", 1.0),       # Extra Points Made
-        27: ("kicking_xpa", 0.0),       # Extra Points Attempted
-        
-        # Returns
-        14: ("kickret_tds", 6.0),       # Kick Return TDs
-        17: ("puntret_tds", 6.0),      # Punt Return TDs
-        
+        # Passing
+        4: ("passing_yards", 0.04),             # Pass Yards (25 yds/pt)
+        5: ("passing_tds", 4.0),                # Pass TDs
+        6: ("interceptions", -2.0),             # Interceptions Thrown
+
+        # Rushing
+        9: ("rushing_yards", 0.1),              # Rush Yards (10 yds/pt)
+        10: ("rushing_tds", 6.0),               # Rush TDs
+        56: ("rushing_fumbles", -2.0),          # Rushing Fumbles
+
+        # Receiving
+        11: ("receptions", 0.5),                # Receptions (half PPR)
+        12: ("receiving_yards", 0.1),           # Rec Yards (10 yds/pt)
+        13: ("receiving_tds", 6.0),             # Rec TDs
+
+        # General offense
+        15: ("return_tds", 6.0),                # Return TDs (offense)
+        16: ("two_point_conversions", 2.0),     # 2-Point Conversions
+        18: ("fumbles_lost", -2.0),             # Fumbles Lost
+        57: ("off_fumble_ret_tds", 6.0),        # Offensive Fumble Return TD
+
+        # Kicking - FG Made
+        19: ("kicking_fgm_0_19", 3.0),         # FG Made 0-19
+        20: ("kicking_fgm_20_29", 3.0),        # FG Made 20-29
+        21: ("kicking_fgm_30_39", 3.0),        # FG Made 30-39
+        22: ("kicking_fgm_40_49", 4.0),        # FG Made 40-49
+        23: ("kicking_fgm_50_plus", 5.0),      # FG Made 50+
+
+        # Kicking - FG Missed (by distance)
+        24: ("kicking_fgmiss_0_19", -1.0),     # FG Missed 0-19
+        25: ("kicking_fgmiss_20_29", -1.0),    # FG Missed 20-29
+        26: ("kicking_fgmiss_30_39", -1.0),    # FG Missed 30-39
+        27: ("kicking_fgmiss_40_49", -1.0),    # FG Missed 40-49
+
+        # Kicking - PAT
+        29: ("kicking_xpm", 1.0),               # PAT Made
+        30: ("kicking_xpmiss", -1.0),           # PAT Missed
+
         # Defense
-        32: ("def_sacks", 1.0),         # Sacks
-        33: ("def_interceptions", 2.0),  # Interceptions
-        34: ("def_fumbles_recovered", 2.0), # Fumbles Recovered
-        35: ("def_safeties", 2.0),      # Safeties
-        36: ("def_blocked_kicks", 2.0),  # Blocked Kicks
-        37: ("def_tds", 6.0),           # Defensive TDs
-        49: ("def_ret_tds", 6.0),       # Return TDs (defense)
-        
+        32: ("def_sacks", 1.0),                 # Sacks
+        33: ("def_interceptions", 2.0),         # Interceptions
+        34: ("def_fumbles_recovered", 2.0),     # Fumbles Recovered
+        35: ("def_tds", 6.0),                   # Defensive TDs
+        36: ("def_safeties", 2.0),              # Safeties
+        37: ("def_blocked_kicks", 2.0),         # Blocked Kicks
+        49: ("def_ret_tds", 6.0),               # Return TDs (defense)
+
         # Defense points allowed
-        50: ("def_pts_allow_0", 10.0),  # Points Allowed 0
-        51: ("def_pts_allow_1_6", 7.0), # Points Allowed 1-6
-        52: ("def_pts_allow_7_13", 4.0), # Points Allowed 7-13
-        53: ("def_pts_allow_14_20", 1.0), # Points Allowed 14-20
-        54: ("def_pts_allow_21_27", 0.0), # Points Allowed 21-27
-        55: ("def_pts_allow_28_34", -1.0), # Points Allowed 28-34
-        82: ("def_pts_allow_35_plus", -4.0), # Points Allowed 35+
-        57: ("fumbles_lost", 6.0),      # Fumble Return TDs
+        50: ("def_pts_allow_0", 10.0),          # Points Allowed 0
+        51: ("def_pts_allow_1_6", 7.0),         # Points Allowed 1-6
+        52: ("def_pts_allow_7_13", 4.0),        # Points Allowed 7-13
+        53: ("def_pts_allow_14_20", 1.0),       # Points Allowed 14-20
+        54: ("def_pts_allow_21_27", 0.0),       # Points Allowed 21-27
+        55: ("def_pts_allow_28_34", -1.0),      # Points Allowed 28-34
+        82: ("def_pts_allow_35_plus", -4.0),    # Points Allowed 35+
     }
 
     @staticmethod
@@ -116,21 +119,19 @@ class ScoringRulesParser:
 
     @staticmethod
     def _get_default_scoring_rules() -> Dict[str, float]:
-        """Get default PPR scoring rules as fallback."""
+        """Get default half-PPR scoring rules as fallback."""
         return {
             "passing_yards": 0.04,
             "passing_tds": 4.0,
-            "passing_ints": -2.0,
-            "passing_2pt": 2.0,
+            "interceptions": -2.0,
             "rushing_yards": 0.1,
             "rushing_tds": 6.0,
-            "rushing_2pt": 2.0,
             "receiving_yards": 0.1,
             "receiving_tds": 6.0,
             "receptions": 0.5,
-            "receiving_2pt": 2.0,
+            "two_point_conversions": 2.0,
             "fumbles_lost": -2.0,
-            "kicking_fgm": 3.0,
+            "kicking_fgm_30_39": 3.0,
             "kicking_xpm": 1.0,
         }
 
@@ -169,17 +170,19 @@ class FantasyPointsCalculator:
         if stat_name in row:
             return float(row[stat_name])
         
-        # Common variations
+        # Common variations (nfl_data_py column names differ from Yahoo stat names)
         variations = {
             "passing_yards": ["pass_yards", "passing_yd", "pass_yd"],
             "passing_tds": ["pass_tds", "passing_td", "pass_td"],
-            "passing_ints": ["pass_ints", "passing_int", "pass_int"],
+            "interceptions": ["passing_ints", "pass_ints", "passing_int"],
             "rushing_yards": ["rush_yards", "rushing_yd", "rush_yd"],
             "rushing_tds": ["rush_tds", "rushing_td", "rush_td"],
+            "rushing_fumbles": ["rush_fumbles"],
             "receiving_yards": ["rec_yards", "receiving_yd", "rec_yd"],
             "receiving_tds": ["rec_tds", "receiving_td", "rec_td"],
-            "receptions": ["rec", "receptions", " receptions"],
-            "fumbles_lost": ["fumbles_lost", "fumbles", " fum_lost"],
+            "receptions": ["rec"],
+            "fumbles_lost": ["fumbles", "fum_lost"],
+            "two_point_conversions": ["passing_2pt_conversions", "rushing_2pt_conversions"],
         }
         
         if stat_name in variations:

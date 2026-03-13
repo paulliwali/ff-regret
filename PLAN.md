@@ -213,11 +213,20 @@ All pillars use "The One That Got Away" narrative card format:
 - Live at: `https://ff-regret-production.up.railway.app`
 - Data seeded via `scripts/migrate_sqlite_to_postgres.py` (SQLite → Railway Postgres)
 
-**4.2 Data Validation (TODO)**
+**4.2 Data Validation (DONE)**
 
-- Spot-check player ID mapping accuracy
-- Validate fantasy point calculations vs Yahoo
-- Cross-reference regret calculations manually
+- Built `scripts/validate_scoring.py` — internal consistency check, player spot-checks, mapping audit
+- Fixed Yahoo stat ID mapping bugs:
+  - stat 6 → `interceptions` (was unmapped due to column name mismatch — INTs were not being scored!)
+  - stat 57 → `off_fumble_ret_tds` (was colliding with `fumbles_lost`, overwriting -2 with +6)
+  - stats 24-27 → FG Missed by distance (were misidentified as PAT/FGA stats)
+  - stats 29-30 → PAT Made/Missed (were misidentified as Completions/Incomplete Passes)
+  - stat 15 → `return_tds` (was misidentified as `receiving_2pt`)
+- Added `_get_stat_value` variations for `interceptions`, `rushing_fumbles`, `two_point_conversions`
+- Built `scripts/recalculate_fantasy_points.py` to update all 5,597 game logs from raw_stats
+- 100% internal consistency after fix (was 96.2% before)
+- Player mapping audit: 219/326 mapped (67%), 107 unmapped (kickers, DEF/ST, rookies)
+- Recalculated all regret metrics with corrected fantasy points
 
 ## 6. Primary Visualization: "The One That Got Away" Spotlight
 
