@@ -16,17 +16,22 @@
                     </div>
                 </div>
 
-                <!-- Team Selection Dropdown -->
+                <!-- Season + Team Selection -->
                 <div class="flex items-center space-x-4">
-                    <label for="team-select" class="text-sm text-gray-300">Select Your Team:</label>
+                    <label for="season-select" class="text-sm text-gray-300">Season:</label>
+                    <select
+                        id="season-select"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
+                    >
+                        <option value="2025" selected>2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+
+                    <label for="team-select" class="text-sm text-gray-300">Team:</label>
                     <select
                         id="team-select"
                         name="team-select"
                         class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-w-[200px]"
-                        hx-get="/api/teams/options"
-                        hx-target="#team-select"
-                        hx-trigger="load"
-                        hx-swap="innerHTML"
                     >
                         <option value="">Loading teams...</option>
                     </select>
@@ -198,7 +203,35 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const teamSelect = document.getElementById('team-select');
+    const seasonSelect = document.getElementById('season-select');
     let currentTeamId = null;
+
+    function getSeasonYear() {
+        return seasonSelect.value;
+    }
+
+    function seasonParam() {
+        return `season_year=${getSeasonYear()}`;
+    }
+
+    async function loadTeams() {
+        teamSelect.innerHTML = '<option value="">Loading teams...</option>';
+        try {
+            const res = await fetch(`/api/teams/options?${seasonParam()}`);
+            teamSelect.innerHTML = await res.text();
+        } catch (e) {
+            teamSelect.innerHTML = '<option value="">Failed to load teams</option>';
+        }
+    }
+
+    // Load teams on page load and when season changes
+    loadTeams();
+    seasonSelect.addEventListener('change', function() {
+        currentTeamId = null;
+        document.getElementById('team-dashboard').classList.add('hidden');
+        document.getElementById('loading-state').classList.remove('hidden');
+        loadTeams();
+    });
 
     function severityClass(delta) {
         if (delta > 50) return ['bg-red-500/20 border-red-500/40', 'HIGH'];
@@ -340,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById('timeline-container');
         container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading timeline...</p>';
         try {
-            const res = await fetch(`/api/team/${currentTeamId}/weekly-timeline`);
+            const res = await fetch(`/api/team/${currentTeamId}/weekly-timeline?${seasonParam()}`);
             const data = await res.json();
             const { timeline, max_score } = data;
 
@@ -443,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const container = document.getElementById(containerId);
         container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading...</p>';
         try {
-            const res = await fetch(`/api/team/${currentTeamId}/${type}-regrets`);
+            const res = await fetch(`/api/team/${currentTeamId}/${type}-regrets?${seasonParam()}`);
             const data = await res.json();
             const key = Object.keys(data)[0];
             const regrets = data[key];
@@ -482,7 +515,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Fetch and render summary
         try {
-            const summaryRes = await fetch(`/api/team/${teamId}/summary`);
+            const summaryRes = await fetch(`/api/team/${teamId}/summary?${seasonParam()}`);
             const summary = await summaryRes.json();
             document.getElementById('total-regrets').textContent = summary.total_regrets;
             document.getElementById('total-points-lost').textContent = summary.total_points_lost.toFixed(1);

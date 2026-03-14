@@ -43,16 +43,17 @@ async def health_check():
 
 
 @app.get("/api/teams")
-async def get_teams():
+async def get_teams(season_year: int = None):
     """Get all teams in the league."""
     from app.models import LeagueWeeklyRoster
     from sqlalchemy import select, distinct
 
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(distinct(LeagueWeeklyRoster.team_id))
-            .where(LeagueWeeklyRoster.season_year == settings.season_year)
+            .where(LeagueWeeklyRoster.season_year == year)
             .order_by(LeagueWeeklyRoster.team_id)
         )
         teams = result.scalars().all()
@@ -61,14 +62,16 @@ async def get_teams():
 
 
 @app.get("/api/teams/options", response_class=HTMLResponse)
-async def get_teams_options():
-    """Return team options as HTML for HTMX select population."""
+async def get_teams_options(season_year: int = None):
+    """Return team options as HTML for select population."""
     import json
     from pathlib import Path
     from app.models import LeagueWeeklyRoster
     from sqlalchemy import select, distinct
 
     from app.db import async_session
+
+    year = season_year or settings.season_year
 
     # Load team names if available
     team_names_file = Path(__file__).parent / "team_names.json"
@@ -79,7 +82,7 @@ async def get_teams_options():
     async with async_session() as session:
         result = await session.execute(
             select(distinct(LeagueWeeklyRoster.team_id))
-            .where(LeagueWeeklyRoster.season_year == settings.season_year)
+            .where(LeagueWeeklyRoster.season_year == year)
             .order_by(LeagueWeeklyRoster.team_id)
         )
         teams = sorted(result.scalars().all())
@@ -95,14 +98,16 @@ async def get_teams_options():
 
 
 @app.get("/api/team/{team_id}/summary")
-async def get_team_summary(team_id: str):
+async def get_team_summary(team_id: str, season_year: int = None):
     """Get regret summary for a team, plus league-wide ranges."""
     from app.models import RegretMetric
     from sqlalchemy import select, func
 
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         score_filter = RegretMetric.regret_score > 0
+        season_filter = RegretMetric.season_year == year
 
         # Team-specific summary
         result = await session.execute(
@@ -112,6 +117,7 @@ async def get_team_summary(team_id: str):
             )
             .where(RegretMetric.team_id == team_id)
             .where(score_filter)
+            .where(season_filter)
         )
         summary = result.first()
 
@@ -123,6 +129,7 @@ async def get_team_summary(team_id: str):
                 func.sum(RegretMetric.regret_score).label("pts"),
             )
             .where(score_filter)
+            .where(season_filter)
             .group_by(RegretMetric.team_id)
         ).subquery()
 
@@ -140,6 +147,7 @@ async def get_team_summary(team_id: str):
         startsit_result = await session.execute(
             select(RegretMetric.team_id, RegretMetric.data_payload)
             .where(RegretMetric.metric_type == "start_sit")
+            .where(season_filter)
         )
         all_startsit = startsit_result.all()
 
@@ -170,17 +178,19 @@ async def get_team_summary(team_id: str):
 
 
 @app.get("/api/team/{team_id}/draft-regrets")
-async def get_draft_regrets(team_id: str):
+async def get_draft_regrets(team_id: str, season_year: int = None):
     """Get draft regrets for a team."""
     from app.models import RegretMetric
     from sqlalchemy import select
-    
+
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(RegretMetric)
             .where(RegretMetric.team_id == team_id)
             .where(RegretMetric.metric_type == "draft")
+            .where(RegretMetric.season_year == year)
             .order_by(RegretMetric.regret_score.desc())
         )
         regrets = result.scalars().all()
@@ -194,17 +204,19 @@ async def get_draft_regrets(team_id: str):
 
 
 @app.get("/api/team/{team_id}/waiver-regrets")
-async def get_waiver_regrets(team_id: str, week: int = None):
+async def get_waiver_regrets(team_id: str, week: int = None, season_year: int = None):
     """Get waiver regrets for a team, optionally filtered by week."""
     from app.models import RegretMetric
     from sqlalchemy import select
-    
+
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         query = (
             select(RegretMetric)
             .where(RegretMetric.team_id == team_id)
             .where(RegretMetric.metric_type == "waiver")
+            .where(RegretMetric.season_year == year)
         )
         
         if week:
@@ -224,17 +236,19 @@ async def get_waiver_regrets(team_id: str, week: int = None):
 
 
 @app.get("/api/team/{team_id}/startsit-regrets")
-async def get_startsit_regrets(team_id: str, week: int = None):
+async def get_startsit_regrets(team_id: str, week: int = None, season_year: int = None):
     """Get start/sit regrets for a team, optionally filtered by week."""
     from app.models import RegretMetric
     from sqlalchemy import select
-    
+
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         query = (
             select(RegretMetric)
             .where(RegretMetric.team_id == team_id)
             .where(RegretMetric.metric_type == "start_sit")
+            .where(RegretMetric.season_year == year)
         )
         
         if week:
@@ -254,17 +268,19 @@ async def get_startsit_regrets(team_id: str, week: int = None):
 
 
 @app.get("/api/team/{team_id}/all-regrets")
-async def get_all_regrets(team_id: str):
+async def get_all_regrets(team_id: str, season_year: int = None):
     """Get all regrets for a team, sorted by impact."""
     from app.models import RegretMetric
     from sqlalchemy import select, case, literal_column
-    
+
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
             select(RegretMetric)
             .where(RegretMetric.team_id == team_id)
             .where(RegretMetric.regret_score > 0)
+            .where(RegretMetric.season_year == year)
             .order_by(RegretMetric.regret_score.desc())
             .limit(20)
         )
@@ -284,11 +300,12 @@ async def get_all_regrets(team_id: str):
 
 
 @app.get("/api/team/{team_id}/weekly-timeline")
-async def get_weekly_timeline(team_id: str):
+async def get_weekly_timeline(team_id: str, season_year: int = None):
     """Get per-week regret summary for timeline visualization."""
     from app.models import RegretMetric
     from sqlalchemy import select
 
+    year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         result = await session.execute(
@@ -296,6 +313,7 @@ async def get_weekly_timeline(team_id: str):
             .where(RegretMetric.team_id == team_id)
             .where(RegretMetric.week.isnot(None))
             .where(RegretMetric.regret_score > 0)
+            .where(RegretMetric.season_year == year)
             .order_by(RegretMetric.week)
         )
         regrets = result.scalars().all()
