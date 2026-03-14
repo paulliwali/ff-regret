@@ -2,7 +2,10 @@
 
 ## Project Overview
 
-Three ways to regret your fantasy football season — whether you drafted the wrong player, picked up the wrong player, or started the wrong player. Built for Yahoo Fantasy Football managers in a single league ("The Newer CFL" — 14 teams, game ID `461`, league ID `186782`).
+Three ways to regret your fantasy football season — whether you drafted the wrong player, picked up the wrong player, or started the wrong player. Built for Yahoo Fantasy Football managers in a single league ("The Newer CFL" — 14 teams). Supports multiple seasons via Yahoo API as the sole data source.
+
+**2024 league:** `449.l.776116` (season=2024, end_week=17)
+**2025 league:** `461.l.186782` (current, season=2025, end_week=17)
 
 ## Tech Stack
 
@@ -12,10 +15,9 @@ Three ways to regret your fantasy football season — whether you drafted the wr
 | ORM | SQLAlchemy 2.0 (async) | Models: `app/models/__init__.py` |
 | DB (prod) | PostgreSQL + asyncpg | Railway-hosted |
 | DB (local) | SQLite + aiosqlite | File: `ff_regret.db` |
-| Data | nfl_data_py + Polars | NFL stats and player IDs |
+| Data | Yahoo Fantasy API | Sole data source for stats + points |
 | Yahoo API | yahoo-fantasy-api + yahoo_oauth | OAuth tokens in `app/oauth2.json` (gitignored) |
 | Frontend | HTMX 1.9.10 + Tailwind CSS (CDN) | Jinja2 templates, dark mode |
-| Fuzzy match | rapidfuzz | Player name matching |
 | Package mgr | uv | Lock file: `uv.lock` |
 | Deploy | Railway (Dockerfile) | Config: `railway.toml` |
 
@@ -25,14 +27,16 @@ Three ways to regret your fantasy football season — whether you drafted the wr
 # Local dev
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Initialize data (local)
-uv run python scripts/initialize_data_v2.py
+# Initialize data from Yahoo API (per season)
+uv run python scripts/initialize_yahoo.py --league-key 449.l.776116 --season-year 2024
+uv run python scripts/initialize_yahoo.py --league-key 461.l.186782 --season-year 2025
 
-# Initialize data against Railway Postgres
-DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>:<port>/<db>" uv run python scripts/initialize_data_v2.py
+# Initialize against Railway Postgres
+DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>:<port>/<db>" uv run python scripts/initialize_yahoo.py --league-key 461.l.186782 --season-year 2025
 
-# Calculate regret metrics
-uv run python scripts/calculate_regrets.py
+# Calculate regret metrics (per season)
+uv run python scripts/calculate_regrets.py --season-year 2024
+uv run python scripts/calculate_regrets.py --season-year 2025
 
 # Test Yahoo API connection
 uv run python scripts/test_connection.py
@@ -50,12 +54,9 @@ uv run python scripts/test_connection.py
 All in `app/main.py`. Routes use lazy imports for models and `async_session` inside the function body to avoid circular imports and ensure DB is initialized.
 
 ### Services (`app/services/`)
-- `yahoo_service.py` — Yahoo Fantasy API wrapper with OAuth2 token management
-- `nfl_service.py` — nfl_data_py wrapper, converts Pandas→Polars
-- `player_mapper.py` — 3-tier matching: ID lookup → exact name → fuzzy match (rapidfuzz)
-- `scoring_calculator.py` — Yahoo stat ID → NFL column mapping (60+ stats), calculates fantasy points
+- `yahoo_service.py` — Yahoo Fantasy API wrapper with OAuth2 token management, player stats, matchups
 - `lineup_optimizer.py` — Greedy algorithm respecting position constraints, bye weeks, injuries
-- `regret_engine.py` — Orchestrates draft/waiver/start-sit regret calculations
+- `regret_engine.py` — Orchestrates draft/waiver/start-sit regret calculations (season_year-aware)
 
 ### Frontend (`app/frontend/`)
 - `base.html` — Tailwind dark mode + HTMX + Inter font via CDN
@@ -64,20 +65,22 @@ All in `app/main.py`. Routes use lazy imports for models and `async_session` ins
 - `components/` — Reusable regret card templates (draft, waiver, start/sit)
 
 ### Scripts (`scripts/`)
-- `initialize_data_v2.py` — Main pipeline: Yahoo fetch → NFL data → player mapping → scoring → store
-- `calculate_regrets.py` — Compute regret metrics for all teams
+- `initialize_yahoo.py` — Main pipeline: Yahoo API → cache → store (per league/season)
+- `calculate_regrets.py` — Compute regret metrics for all teams (per season)
+- `initialize_data_v2.py` — Legacy pipeline (nfl_data_py, kept for reference)
 - Various `fetch_*.py`, `map_*.py`, `test_*.py`, `debug_*.py` utilities
 
 ## Database Tables
 
-7 tables in `app/models/__init__.py`:
+8 tables in `app/models/__init__.py` (all season_year-scoped):
 - `league_config` — Scoring rules + roster requirements (JSON)
-- `player_map` — yahoo_id (PK) ↔ gsis_id mapping with confidence score
-- `nfl_game_logs` — Weekly stats + calculated fantasy points (indexed on player_id+week)
+- `player_map` — yahoo_id ↔ gsis_id mapping (identity when Yahoo-only), with position + season_year
+- `nfl_game_logs` — Weekly stats + fantasy points from Yahoo `total_points`
 - `league_weekly_rosters` — JSON roster snapshots per team per week
-- `league_draft_results` — Draft picks with round/overall pick
-- `waiver_wire_availability` — Weekly ownership % and waiver status
-- `regret_metrics` — Precomputed regret scores + narrative JSON payloads
+- `league_draft_results` — Draft picks with round/overall pick + season_year
+- `waiver_wire_availability` — Weekly ownership % and waiver status + season_year
+- `league_matchups` — Weekly matchup results (team scores, W/L) + season_year
+- `regret_metrics` — Precomputed regret scores + narrative JSON payloads + season_year
 
 ## Deployment
 

@@ -6,8 +6,7 @@ Calculates three pillars of regret:
 3. Start/Sit Regret - Suboptimal lineup decisions
 """
 
-import polars as pl
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -18,10 +17,11 @@ logger = logging.getLogger(__name__)
 
 class DraftRegretCalculator:
     """Calculate draft regret metrics for each team."""
-    
-    def __init__(self, session: AsyncSession):
+
+    def __init__(self, session: AsyncSession, season_year: int = 2025):
         self.session = session
-    
+        self.season_year = season_year
+
     async def calculate_draft_regret(self, team_id: str) -> List[Dict[str, Any]]:
         """Calculate top 3 draft regrets for a team.
 
@@ -30,44 +30,50 @@ class DraftRegretCalculator:
         """
         from app.models import LeagueDraftResult, PlayerMap, NflGameLog
 
-        # Get team's draft picks
+        # Get team's draft picks (season-scoped)
         result = await self.session.execute(
             select(LeagueDraftResult)
             .where(LeagueDraftResult.team_id == team_id)
+            .where(LeagueDraftResult.season_year == self.season_year)
             .order_by(LeagueDraftResult.overall_pick)
         )
         team_picks = result.scalars().all()
 
-        # Get all draft picks for comparison
+        # Get all draft picks for comparison (same season)
         result = await self.session.execute(
             select(LeagueDraftResult)
+            .where(LeagueDraftResult.season_year == self.season_year)
             .order_by(LeagueDraftResult.overall_pick)
         )
         all_picks = result.scalars().all()
 
-        # Get player mappings (yahoo_id -> gsis_id and position)
-        result = await self.session.execute(select(PlayerMap))
+        # Get player mappings (season-scoped)
+        result = await self.session.execute(
+            select(PlayerMap).where(PlayerMap.season_year == self.season_year)
+        )
         player_map_rows = result.scalars().all()
+        # yahoo_id == gsis_id in identity mapping, but keep the lookup for compatibility
         player_maps = {row.yahoo_id: row.gsis_id for row in player_map_rows}
         player_names = {row.yahoo_id: row.full_name for row in player_map_rows}
 
-        # Get all NFL game logs for season (points + positions)
-        result = await self.session.execute(select(NflGameLog))
+        # Get game logs for this season
+        result = await self.session.execute(
+            select(NflGameLog).where(NflGameLog.season_year == self.season_year)
+        )
         game_logs = result.scalars().all()
 
-        # Calculate season points and extract positions for each player
+        # Calculate season points and extract positions
         player_season_points: Dict[str, float] = {}
         player_positions: Dict[str, str] = {}
         for log in game_logs:
             player_id = log.player_id
-            points = log.fantasy_points
             if player_id not in player_season_points:
                 player_season_points[player_id] = 0
-            player_season_points[player_id] += points
+            player_season_points[player_id] += log.fantasy_points
             if log.raw_stats and "position" in log.raw_stats:
                 player_positions[player_id] = log.raw_stats["position"]
 
-        # Build yahoo_id -> position lookup via gsis_id
+        # Build yahoo_id -> position lookup
         yahoo_positions: Dict[str, str] = {}
         for yahoo_id, gsis_id in player_maps.items():
             if gsis_id in player_positions:
@@ -80,7 +86,7 @@ class DraftRegretCalculator:
             gsis_id = player_maps.get(yahoo_id)
 
             if not gsis_id:
-                logger.warning(f"No GSIS ID found for Yahoo ID {yahoo_id}")
+                logger.warning(f"No mapping found for Yahoo ID {yahoo_id}")
                 continue
 
             drafted_points = player_season_points.get(gsis_id, 0)
@@ -102,16 +108,16 @@ class DraftRegretCalculator:
                     continue
 
                 nearby_points = player_season_points.get(nearby_gsis_id, 0)
-
-                # Calculate delta (negative means you made a good pick)
                 delta = nearby_points - drafted_points
 
-                if delta > 0:  # Only track misses
+                if delta > 0:
                     regrets.append({
                         "overall_pick": pick.overall_pick,
                         "round": pick.round,
                         "drafted_player_id": yahoo_id,
-                        "drafted_player_name": player_names.get(yahoo_id, f"Player #{yahoo_id}"),
+                        "drafted_player_name": player_names.get(
+                            yahoo_id, f"Player #{yahoo_id}"
+                        ),
                         "drafted_player_points": drafted_points,
                         "drafted_position": drafted_position,
                         "missed_player_id": nearby_yahoo_id,
@@ -120,20 +126,23 @@ class DraftRegretCalculator:
                         ),
                         "missed_player_points": nearby_points,
                         "points_delta": delta,
-                        "pick_distance": abs(nearby_pick.overall_pick - pick.overall_pick)
+                        "pick_distance": abs(
+                            nearby_pick.overall_pick - pick.overall_pick
+                        ),
                     })
 
-        # Sort by delta and keep top 3
         regrets.sort(key=lambda x: x["points_delta"], reverse=True)
         return regrets[:3]
-    
+
     async def _resolve_player_name(self, yahoo_id: str) -> str:
         """Resolve a Yahoo player ID to a name via player_map."""
         from app.models import PlayerMap
         result = await self.session.execute(
-            select(PlayerMap).where(PlayerMap.yahoo_id == yahoo_id)
+            select(PlayerMap)
+            .where(PlayerMap.yahoo_id == yahoo_id)
+            .where(PlayerMap.season_year == self.season_year)
         )
-        pm = result.scalar_one_or_none()
+        pm = result.scalars().first()
         return pm.full_name if pm else f"Player #{yahoo_id}"
 
     async def generate_narrative(self, regret: Dict[str, Any]) -> str:
@@ -151,31 +160,32 @@ class DraftRegretCalculator:
 class WaiverRegretCalculator:
     """Calculate waiver wire regret: best FA you could have signed."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, season_year: int = 2025):
         self.session = session
+        self.season_year = season_year
         self._player_maps: Optional[Dict[str, str]] = None
         self._player_names: Optional[Dict[str, str]] = None
         self._ros_points: Optional[Dict[str, Dict[int, float]]] = None
         self._player_positions: Optional[Dict[str, str]] = None
 
-    async def _load_lookups(self, season_year: int = 2024):
+    async def _load_lookups(self):
         """Load shared lookup tables once."""
         if self._player_maps is not None:
             return
         from app.models import PlayerMap, NflGameLog
 
-        result = await self.session.execute(select(PlayerMap))
+        result = await self.session.execute(
+            select(PlayerMap).where(PlayerMap.season_year == self.season_year)
+        )
         maps = result.scalars().all()
         self._player_maps = {r.yahoo_id: r.gsis_id for r in maps}
         self._player_names = {r.yahoo_id: r.full_name for r in maps}
 
-        # Build ROS points and position lookup from game logs
         result = await self.session.execute(
-            select(NflGameLog).where(NflGameLog.season_year == season_year)
+            select(NflGameLog).where(NflGameLog.season_year == self.season_year)
         )
         logs = result.scalars().all()
 
-        # ros_points[gsis_id][from_week] = sum of points from from_week to 17
         pts_by_week: Dict[str, Dict[int, float]] = {}
         self._player_positions = {}
         for log in logs:
@@ -192,28 +202,21 @@ class WaiverRegretCalculator:
                 )
 
     async def calculate_waiver_regrets(
-        self, team_id: str, season_year: int = 2024
+        self, team_id: str
     ) -> List[Dict[str, Any]]:
-        """Find top 3 FAs available each week that would have helped ROS.
+        """Find top 3 FAs available each week that would have helped ROS."""
+        from app.models import LeagueWeeklyRoster, WaiverWireAvailability
 
-        For each week, find the best available free agent (by ROS points)
-        at a position where they would have outperformed the team's worst
-        rostered player at that position for the rest of season.
-        """
-        from app.models import (
-            LeagueWeeklyRoster, WaiverWireAvailability,
-        )
-        await self._load_lookups(season_year)
+        await self._load_lookups()
 
         regrets = []
 
-        for week in range(1, 15):  # Weeks 1-14 (need ROS runway)
-            # Get team's roster
+        for week in range(1, 15):
             result = await self.session.execute(
                 select(LeagueWeeklyRoster)
                 .where(LeagueWeeklyRoster.team_id == team_id)
                 .where(LeagueWeeklyRoster.week == week)
-                .where(LeagueWeeklyRoster.season_year == season_year)
+                .where(LeagueWeeklyRoster.season_year == self.season_year)
                 .order_by(LeagueWeeklyRoster.created_at.desc())
                 .limit(1)
             )
@@ -221,7 +224,6 @@ class WaiverRegretCalculator:
             if not roster:
                 continue
 
-            # Build team's ROS points by position
             roster_data = roster.roster_snapshot.get("players", [])
             team_ros_by_pos: Dict[str, List[tuple]] = {}
             for player in roster_data:
@@ -235,16 +237,15 @@ class WaiverRegretCalculator:
                 ros = self._ros_points[gsis_id].get(week, 0)
                 team_ros_by_pos.setdefault(pos, []).append((yahoo_id, ros))
 
-            # Get worst rostered player per position
             worst_by_pos = {}
             for pos, players in team_ros_by_pos.items():
                 worst = min(players, key=lambda x: x[1])
-                worst_by_pos[pos] = worst  # (yahoo_id, ros_points)
+                worst_by_pos[pos] = worst
 
-            # Get available FAs this week
             result = await self.session.execute(
                 select(WaiverWireAvailability)
                 .where(WaiverWireAvailability.week == week)
+                .where(WaiverWireAvailability.season_year == self.season_year)
                 .where(WaiverWireAvailability.ownership_percentage <= 30)
             )
             fa_players = result.scalars().all()
@@ -263,8 +264,10 @@ class WaiverRegretCalculator:
                 worst_yahoo_id, worst_ros = worst_by_pos[fa_pos]
                 delta = fa_ros - worst_ros
 
-                if delta > 20:  # Only meaningful misses
-                    fa_name = self._player_names.get(fa_yahoo_id, f"Player #{fa_yahoo_id}")
+                if delta > 20:
+                    fa_name = self._player_names.get(
+                        fa_yahoo_id, f"Player #{fa_yahoo_id}"
+                    )
                     worst_name = self._player_names.get(
                         worst_yahoo_id, f"Player #{worst_yahoo_id}"
                     )
@@ -281,14 +284,15 @@ class WaiverRegretCalculator:
                         "points_delta": delta,
                     })
 
-        # Deduplicate: keep best week per FA player
         best_per_fa: Dict[str, Dict] = {}
         for r in regrets:
             key = r["fa_player_id"]
             if key not in best_per_fa or r["points_delta"] > best_per_fa[key]["points_delta"]:
                 best_per_fa[key] = r
 
-        deduped = sorted(best_per_fa.values(), key=lambda x: x["points_delta"], reverse=True)
+        deduped = sorted(
+            best_per_fa.values(), key=lambda x: x["points_delta"], reverse=True
+        )
         return deduped[:3]
 
     def generate_narrative(self, regret: Dict[str, Any]) -> str:
@@ -304,54 +308,57 @@ class WaiverRegretCalculator:
 
 class StartSitRegretCalculator:
     """Calculate start/sit regret metrics with lineup optimization."""
-    
-    def __init__(self, session: AsyncSession, roster_requirements: Dict[str, Any]):
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        roster_requirements: Dict[str, Any],
+        season_year: int = 2025,
+    ):
         self.session = session
+        self.season_year = season_year
         self.optimizer = LineupOptimizer(roster_requirements)
-    
+
     async def calculate_weekly_startsit_regret(
-        self, team_id: str, week: int, season_year: int = 2024
+        self, team_id: str, week: int
     ) -> Dict[str, Any]:
-        """Calculate lineup optimization regret for a team in a specific week.
-        
-        Compares actual lineup points to optimal lineup points
-        given the team's full roster.
-        """
+        """Calculate lineup optimization regret for a team in a specific week."""
         from app.models import LeagueWeeklyRoster, PlayerMap, NflGameLog
-        
-        # Get team's roster for the week (most recent entry)
+
         result = await self.session.execute(
             select(LeagueWeeklyRoster)
             .where(LeagueWeeklyRoster.team_id == team_id)
             .where(LeagueWeeklyRoster.week == week)
-            .where(LeagueWeeklyRoster.season_year == season_year)
+            .where(LeagueWeeklyRoster.season_year == self.season_year)
             .order_by(LeagueWeeklyRoster.created_at.desc())
             .limit(1)
         )
         roster = result.scalar_one_or_none()
-        
+
         if not roster:
-            logger.warning(f"No roster found for team {team_id}, week {week}, season {season_year}")
+            logger.warning(
+                f"No roster found for team {team_id}, week {week}, "
+                f"season {self.season_year}"
+            )
             return {}
-        
+
         roster_data = roster.roster_snapshot.get("players", [])
-        
-        # Get player mappings
-        result = await self.session.execute(select(PlayerMap))
+
+        # Player mappings (season-scoped)
+        result = await self.session.execute(
+            select(PlayerMap).where(PlayerMap.season_year == self.season_year)
+        )
         player_maps = {row.yahoo_id: row.gsis_id for row in result.scalars().all()}
-        
-        # Get game logs for this week and season
+
+        # Game logs for this week + season
         result = await self.session.execute(
             select(NflGameLog)
             .where(NflGameLog.week == week)
-            .where(NflGameLog.season_year == season_year)
+            .where(NflGameLog.season_year == self.season_year)
         )
         week_logs = result.scalars().all()
-        
-        # Create player points lookup
         player_week_points = {log.player_id: log.fantasy_points for log in week_logs}
-        
-        # Build roster with fantasy points
+
         team_players = []
         for player in roster_data:
             yahoo_id = str(player["player_id"])
@@ -368,25 +375,20 @@ class StartSitRegretCalculator:
                 "eligible_positions": player.get("eligible_positions", []),
                 "actual_position": player.get("selected_position", "BN"),
                 "points": points,
-                "is_starter": player.get("selected_position", "BN") != "BN"
+                "is_starter": player.get("selected_position", "BN") != "BN",
             })
-        
-        # Calculate actual points
+
         actual_points = sum(p["points"] for p in team_players if p["is_starter"])
-        
-        # Optimize lineup using LineupOptimizer
+
         optimal_result = self.optimizer.optimize_lineup(team_players, week)
         optimal_points = optimal_result["optimal_points"]
-        
-        # Compare lineups
+
         comparison = self.optimizer.compare_lineups(team_players, optimal_result)
 
-        # Build specific swap details: which bench player should replace which starter
         swaps = []
         should_bench_ids = comparison.get("should_bench", set())
         should_start_ids = comparison.get("should_start", set())
 
-        # Map player_id -> player info for quick lookup
         player_by_id = {p["player_id"]: p for p in team_players}
 
         benched_list = sorted(
@@ -417,9 +419,9 @@ class StartSitRegretCalculator:
             "points_delta": optimal_points - actual_points,
             "comparison": comparison,
             "swaps": swaps,
-            "team_players": team_players
+            "team_players": team_players,
         }
-    
+
     def generate_narrative(self, regret: Dict[str, Any], week: int) -> str:
         """Generate narrative for start/sit regret spotlight card."""
         comparison = regret.get("comparison", {})
@@ -457,28 +459,34 @@ class StartSitRegretCalculator:
 
 class RegretEngine:
     """Main regret engine orchestrator."""
-    
-    def __init__(self, session: AsyncSession, roster_requirements: Dict[str, Any] = {}):
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        roster_requirements: Dict[str, Any] = {},
+        season_year: int = 2025,
+    ):
         self.session = session
-        self.draft_calculator = DraftRegretCalculator(session)
-        self.waiver_calculator = WaiverRegretCalculator(session)
-        self.startsit_calculator = StartSitRegretCalculator(session, roster_requirements)
-    
+        self.season_year = season_year
+        self.draft_calculator = DraftRegretCalculator(session, season_year)
+        self.waiver_calculator = WaiverRegretCalculator(session, season_year)
+        self.startsit_calculator = StartSitRegretCalculator(
+            session, roster_requirements, season_year
+        )
+
     async def calculate_all_regrets(self, team_id: str) -> Dict[str, Any]:
         """Calculate all regret metrics for a team."""
         logger.info(f"Calculating all regrets for team {team_id}")
 
-        # Draft regret (season-long)
         draft_regrets = await self.draft_calculator.calculate_draft_regret(team_id)
-
-        # Waiver regret (season-long: best FA misses)
         waiver_regrets = await self.waiver_calculator.calculate_waiver_regrets(team_id)
 
-        # Weekly start/sit regrets
         weekly_regrets = {}
         for week in range(1, 18):
-            startsit_regret = await self.startsit_calculator.calculate_weekly_startsit_regret(
-                team_id, week
+            startsit_regret = (
+                await self.startsit_calculator.calculate_weekly_startsit_regret(
+                    team_id, week
+                )
             )
             if startsit_regret:
                 weekly_regrets[week] = {"startsit_regret": startsit_regret}
