@@ -92,10 +92,11 @@ class DraftRegretCalculator:
             drafted_points = player_season_points.get(gsis_id, 0)
             drafted_position = yahoo_positions.get(yahoo_id, "")
 
-            # Find players drafted within ±3 picks at the same position
+            # Find same-position players drafted 1-3 picks after this one
+            # (players drafted earlier were already off the board)
             nearby_picks = [
                 p for p in all_picks
-                if abs(p.overall_pick - pick.overall_pick) <= 3
+                if 0 < (p.overall_pick - pick.overall_pick) <= 3
                 and p.player_id != yahoo_id
                 and yahoo_positions.get(p.player_id, "") == drafted_position
             ]

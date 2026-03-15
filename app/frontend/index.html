@@ -53,8 +53,8 @@
                     <p class="text-sm text-gray-400 mt-1" id="finish-text"></p>
                     <div class="mt-auto pt-3" id="finish-range-container" style="display:none;">
                         <div class="flex justify-between text-xs text-gray-500 mb-1">
-                            <span>1st</span>
                             <span id="finish-total">14th</span>
+                            <span>1st</span>
                         </div>
                         <div class="relative h-2 bg-gray-700 rounded-full">
                             <div id="finish-marker" class="absolute w-2 h-2 bg-blue-400 rounded-full" style="left:0%"></div>
@@ -462,7 +462,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('finish-icon').textContent = icons[finish] || '';
                 const ordinal = n => n + (['st','nd','rd'][((n+90)%100-10)%10-1] || 'th');
                 document.getElementById('finish-text').textContent = `${ordinal(finish)} of ${total} teams`;
-                const pct = total > 1 ? ((finish - 1) / (total - 1)) * 100 : 0;
+                const pct = total > 1 ? ((total - finish) / (total - 1)) * 100 : 0;
                 document.getElementById('finish-total').textContent = `${ordinal(total)}`;
                 document.getElementById('finish-marker').style.left = `${Math.max(0, Math.min(100, pct))}%`;
                 document.getElementById('finish-range-container').style.display = 'block';
@@ -480,9 +480,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const r = summary.league_range;
 
                 const pMin = r.points_lost[0], pMax = r.points_lost[1];
-                const pPct = pMax > pMin ? ((summary.total_points_lost - pMin) / (pMax - pMin)) * 100 : 50;
-                document.getElementById('points-min').textContent = pMin.toFixed(0);
-                document.getElementById('points-max').textContent = pMax.toFixed(0);
+                const pPct = pMax > pMin ? ((pMax - summary.total_points_lost) / (pMax - pMin)) * 100 : 50;
+                document.getElementById('points-min').textContent = pMax.toFixed(0);
+                document.getElementById('points-max').textContent = pMin.toFixed(0);
                 document.getElementById('points-marker').style.left = `${Math.max(0, Math.min(100, pPct))}%`;
                 document.getElementById('points-range-container').style.display = 'block';
 
