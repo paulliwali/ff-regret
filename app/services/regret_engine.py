@@ -337,24 +337,32 @@ class DropRegretCalculator:
             if log.raw_stats and "position" in log.raw_stats:
                 player_positions[log.player_id] = log.raw_stats["position"]
 
-        # Load all weekly rosters for this team
+        # Load ALL teams' rosters to detect trades vs drops
         result = await self.session.execute(
             select(LeagueWeeklyRoster)
-            .where(LeagueWeeklyRoster.team_id == team_id)
             .where(LeagueWeeklyRoster.season_year == self.season_year)
             .order_by(LeagueWeeklyRoster.week)
         )
-        rosters = result.scalars().all()
+        all_rosters = result.scalars().all()
 
-        # Build week -> set of player_ids on roster
+        # Build week -> {player_id: team_id} for all teams
+        league_by_week: Dict[int, Dict[str, str]] = {}
         roster_by_week: Dict[int, set] = {}
-        for roster in rosters:
-            players = roster.roster_snapshot.get("players", [])
-            roster_by_week[roster.week] = {
-                str(p["player_id"]) for p in players
-            }
+        for roster in all_rosters:
+            wk = roster.week
+            if wk not in league_by_week:
+                league_by_week[wk] = {}
+            for p in roster.roster_snapshot.get("players", []):
+                pid = str(p["player_id"])
+                league_by_week[wk][pid] = roster.team_id
+            if roster.team_id == team_id:
+                roster_by_week[wk] = {
+                    str(p["player_id"])
+                    for p in roster.roster_snapshot.get("players", [])
+                }
 
         # Detect drops: on roster week N, not on roster week N+1
+        # Exclude trades: player appears on another team the next week
         drops: List[Dict[str, Any]] = []
         for week in range(1, 17):
             current = roster_by_week.get(week, set())
@@ -362,8 +370,12 @@ class DropRegretCalculator:
             if not current or not next_week:
                 continue
 
-            dropped = current - next_week
-            for yahoo_id in dropped:
+            disappeared = current - next_week
+            for yahoo_id in disappeared:
+                # If the player is on another team next week, it's a trade
+                next_week_owner = league_by_week.get(week + 1, {}).get(yahoo_id)
+                if next_week_owner and next_week_owner != team_id:
+                    continue
                 gsis_id = player_maps.get(yahoo_id)
                 if not gsis_id or gsis_id not in pts_by_week:
                     continue
