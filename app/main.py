@@ -396,7 +396,7 @@ async def get_weekly_timeline(team_id: str, season_year: int = None):
             wk = r.week
             if wk not in weeks:
                 weeks[wk] = {"week": wk, "total_score": 0, "regrets": []}
-            if r.regret_score > 0:
+            if r.regret_score > 0 and r.metric_type == "start_sit":
                 weeks[wk]["total_score"] += r.regret_score
             weeks[wk]["regrets"].append({
                 "metric_type": r.metric_type,
