@@ -7,32 +7,24 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <span class="text-2xl">🏈</span>
-                    </div>
+                    <span class="text-2xl">🏈</span>
                     <div class="ml-4">
                         <h1 class="text-xl font-bold text-white">Fantasy Football Regret Engine</h1>
                         <p class="text-xs text-gray-400">The "What If" Generator</p>
                     </div>
                 </div>
 
-                <!-- Season + Team Selection -->
                 <div class="flex items-center space-x-4">
                     <label for="season-select" class="text-sm text-gray-300">Season:</label>
-                    <select
-                        id="season-select"
-                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5"
-                    >
+                    <select id="season-select"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
                         <option value="2025" selected>2025</option>
                         <option value="2024">2024</option>
                     </select>
 
                     <label for="team-select" class="text-sm text-gray-300">Team:</label>
-                    <select
-                        id="team-select"
-                        name="team-select"
-                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-w-[200px]"
-                    >
+                    <select id="team-select"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-w-[200px]">
                         <option value="">Loading teams...</option>
                     </select>
                 </div>
@@ -40,98 +32,59 @@
         </div>
     </header>
 
-    <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         <!-- Loading State -->
         <div id="loading-state" class="text-center py-20">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <p class="text-gray-400">Select your team to view your regret analysis</p>
         </div>
 
-        <!-- Team Dashboard (hidden by default) -->
+        <!-- Team Dashboard -->
         <div id="team-dashboard" class="hidden">
 
-            <!-- Season Summary Section -->
-            <div class="mb-12">
-                <h2 class="text-3xl font-bold text-white mb-6">Season Regret Summary</h2>
-
-                <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8" id="summary-cards">
-                    <!-- Total Regrets Card -->
-                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-semibold text-gray-300">Weekly Regrets</h3>
-                            <span class="text-2xl">😱</span>
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h3 class="text-sm font-semibold text-gray-400 mb-1">Season Record</h3>
+                    <p class="text-4xl font-bold text-white" id="season-record">-</p>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h3 class="text-sm font-semibold text-gray-400 mb-1">Points Left on Table</h3>
+                    <p class="text-4xl font-bold text-red-400" id="total-points-lost">0.0</p>
+                    <div class="mt-3" id="points-range-container" style="display:none;">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span id="points-min">0</span>
+                            <span id="points-max">0</span>
                         </div>
-                        <p class="text-4xl font-bold text-white mb-2" id="total-regrets">0</p>
-                        <p class="text-sm text-gray-400">Weeks with suboptimal lineups</p>
-                        <div class="mt-3" id="regrets-range-container" style="display:none;">
-                            <div class="flex justify-between text-xs text-gray-500 mb-1">
-                                <span id="regrets-min">0</span>
-                                <span id="regrets-max">0</span>
-                            </div>
-                            <div class="relative h-2 bg-gray-700 rounded-full">
-                                <div class="absolute h-2 bg-white/20 rounded-full" style="left:0%;right:0%"></div>
-                                <div id="regrets-marker" class="absolute w-2 h-2 bg-white rounded-full" style="left:0%"></div>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
+                        <div class="relative h-2 bg-gray-700 rounded-full">
+                            <div id="points-marker" class="absolute w-2 h-2 bg-red-400 rounded-full" style="left:0%"></div>
                         </div>
+                        <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
                     </div>
-
-                    <!-- Points Lost Card -->
-                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-semibold text-gray-300">Points Left on Table</h3>
-                            <span class="text-2xl">💔</span>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h3 class="text-sm font-semibold text-gray-400 mb-1">Season Points Scored</h3>
+                    <p class="text-4xl font-bold text-green-400" id="total-scored">0.0</p>
+                    <div class="mt-3" id="scored-range-container" style="display:none;">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span id="scored-min">0</span>
+                            <span id="scored-max">0</span>
                         </div>
-                        <p class="text-4xl font-bold text-red-400 mb-2" id="total-points-lost">0.0</p>
-                        <p class="text-sm text-gray-400">Total fantasy points missed</p>
-                        <div class="mt-3" id="points-range-container" style="display:none;">
-                            <div class="flex justify-between text-xs text-gray-500 mb-1">
-                                <span id="points-min">0</span>
-                                <span id="points-max">0</span>
-                            </div>
-                            <div class="relative h-2 bg-gray-700 rounded-full">
-                                <div class="absolute h-2 bg-red-500/20 rounded-full" style="left:0%;right:0%"></div>
-                                <div id="points-marker" class="absolute w-2 h-2 bg-red-400 rounded-full" style="left:0%"></div>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
+                        <div class="relative h-2 bg-gray-700 rounded-full">
+                            <div id="scored-marker" class="absolute w-2 h-2 bg-green-400 rounded-full" style="left:0%"></div>
                         </div>
-                    </div>
-
-                    <!-- Total Points Scored Card -->
-                    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-lg font-semibold text-gray-300">Season Points Scored</h3>
-                            <span class="text-2xl">📊</span>
-                        </div>
-                        <p class="text-4xl font-bold text-green-400 mb-2" id="total-scored">0.0</p>
-                        <p class="text-sm text-gray-400">Your total fantasy points</p>
-                        <!-- League range bar -->
-                        <div class="mt-3" id="scored-range-container" style="display:none;">
-                            <div class="flex justify-between text-xs text-gray-500 mb-1">
-                                <span id="scored-min">0</span>
-                                <span id="scored-max">0</span>
-                            </div>
-                            <div class="relative h-2 bg-gray-700 rounded-full">
-                                <div id="scored-bar" class="absolute h-2 bg-green-500/30 rounded-full" style="left:0%;right:0%"></div>
-                                <div id="scored-marker" class="absolute w-2 h-2 bg-green-400 rounded-full" style="left:0%"></div>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
-                        </div>
+                        <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
                     </div>
                 </div>
             </div>
 
             <!-- Weekly Timeline -->
-            <div class="mb-12">
-                <h2 class="text-3xl font-bold text-white mb-6">Weekly Regret Timeline</h2>
+            <div class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4">Weekly Regret Timeline</h2>
                 <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
                     <div id="timeline-container" class="flex gap-1 overflow-x-auto pb-2">
                         <p class="text-gray-500 text-sm">Select a team to load timeline</p>
                     </div>
-                    <!-- Expanded week detail -->
                     <div id="timeline-detail" class="mt-4 hidden">
                         <div class="border-t border-gray-700 pt-4">
                             <h4 class="text-sm font-semibold text-gray-300 mb-3" id="timeline-detail-title"></h4>
@@ -141,57 +94,25 @@
                 </div>
             </div>
 
-            <!-- Regret Pillars -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                <!-- Draft Regret -->
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-xl font-bold text-white">Draft Regret</h3>
-                        <span class="text-3xl">📋</span>
-                    </div>
-                    <p class="text-gray-400 mb-4">Draft picks that haunted your season</p>
-                    <div id="draft-regrets-content" class="mt-4"></div>
-                </div>
-
-                <!-- Waiver Regret -->
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-xl font-bold text-white">Waiver Regret</h3>
-                        <span class="text-3xl">🔍</span>
-                    </div>
-                    <p class="text-gray-400 mb-4">Free agents you should have signed</p>
-                    <div id="waiver-regrets-content" class="mt-4"></div>
-                </div>
-
-                <!-- Start/Sit Regret -->
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-xl font-bold text-white">Start/Sit Regret</h3>
-                        <span class="text-3xl">🔄</span>
-                    </div>
-                    <p class="text-gray-400 mb-4">Lineup decisions that cost you wins</p>
-                    <div id="startsit-regrets-content" class="mt-4"></div>
+            <!-- Draft Regret (Full Width) -->
+            <div class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4">Draft Regret</h2>
+                <p class="text-gray-400 mb-4 text-sm">Your biggest draft day misses</p>
+                <div id="draft-regrets-content" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 </div>
             </div>
         </div>
     </main>
 </div>
 
-<!-- Script for Team Selection -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const teamSelect = document.getElementById('team-select');
     const seasonSelect = document.getElementById('season-select');
     let currentTeamId = null;
+    let timelineData = null;
 
-    function getSeasonYear() {
-        return seasonSelect.value;
-    }
-
-    function seasonParam() {
-        return `season_year=${getSeasonYear()}`;
-    }
+    function seasonParam() { return `season_year=${seasonSelect.value}`; }
 
     async function loadTeams() {
         teamSelect.innerHTML = '<option value="">Loading teams...</option>';
@@ -199,207 +120,62 @@ document.addEventListener('DOMContentLoaded', function() {
             const res = await fetch(`/api/teams/options?${seasonParam()}`);
             teamSelect.innerHTML = await res.text();
         } catch (e) {
-            teamSelect.innerHTML = '<option value="">Failed to load teams</option>';
+            teamSelect.innerHTML = '<option value="">Failed to load</option>';
         }
     }
 
-    // Load teams on page load and when season changes
     loadTeams();
-    seasonSelect.addEventListener('change', function() {
+    seasonSelect.addEventListener('change', () => {
         currentTeamId = null;
         document.getElementById('team-dashboard').classList.add('hidden');
         document.getElementById('loading-state').classList.remove('hidden');
         loadTeams();
     });
 
-    function severityClass(delta) {
-        if (delta > 50) return ['bg-red-500/20 border-red-500/40', 'HIGH'];
-        if (delta > 25) return ['bg-orange-500/20 border-orange-500/40', 'MED'];
-        return ['bg-yellow-500/20 border-yellow-500/40', 'LOW'];
-    }
-
-    function renderDraftRegrets(regrets, containerId) {
-        const container = document.getElementById(containerId);
-        if (!regrets || regrets.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-sm">No draft regrets found</p>';
-            return;
-        }
-        container.innerHTML = regrets.map(r => {
-            const delta = (r.regret_score || r.points_delta || 0);
-            const [cls, label] = severityClass(delta);
-            const pos = r.drafted_position || '';
-            return `
-            <div class="rounded-lg p-4 mb-3 border ${cls}">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-medium text-gray-400">Round ${r.round || '?'}, Pick #${r.overall_pick || '?'}</span>
-                    <span class="text-xs font-bold px-2 py-0.5 rounded ${delta > 50 ? 'bg-red-500/30 text-red-300' : delta > 25 ? 'bg-orange-500/30 text-orange-300' : 'bg-yellow-500/30 text-yellow-300'}">${label}</span>
-                </div>
-                ${pos ? `<span class="text-xs text-gray-500 mb-2 block">${pos}</span>` : ''}
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="bg-red-900/20 rounded p-2 text-center">
-                        <p class="text-xs text-gray-400">You drafted</p>
-                        <p class="text-sm font-semibold text-white truncate">${r.drafted_player_name || 'Unknown'}</p>
-                        <p class="text-lg font-bold text-red-400">${(r.drafted_player_points || 0).toFixed(1)}</p>
-                        <p class="text-xs text-gray-500">pts</p>
-                    </div>
-                    <div class="bg-green-900/20 rounded p-2 text-center">
-                        <p class="text-xs text-gray-400">Could have had</p>
-                        <p class="text-sm font-semibold text-white truncate">${r.missed_player_name || 'Unknown'}</p>
-                        <p class="text-lg font-bold text-green-400">${(r.missed_player_points || 0).toFixed(1)}</p>
-                        <p class="text-xs text-gray-500">pts</p>
-                    </div>
-                </div>
-                <div class="text-center">
-                    <span class="text-red-400 font-bold text-sm">-${delta.toFixed(1)} pts lost</span>
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderWaiverRegrets(regrets, containerId) {
-        const container = document.getElementById(containerId);
-        if (!regrets || regrets.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-sm">No waiver regrets found</p>';
-            return;
-        }
-        container.innerHTML = regrets.map(r => {
-            const delta = (r.regret_score || r.points_delta || 0);
-            const [cls, label] = severityClass(delta);
-            return `
-            <div class="rounded-lg p-4 mb-3 border ${cls}">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-medium text-gray-400">WEEK ${r.week || '?'} &middot; ${r.fa_position || ''}</span>
-                    <span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">${(r.fa_ownership_pct || 0)}% owned</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="bg-red-900/20 rounded p-2 text-center">
-                        <p class="text-xs text-gray-400">You kept</p>
-                        <p class="text-sm font-semibold text-white truncate">${r.replaced_name || 'Unknown'}</p>
-                        <p class="text-lg font-bold text-red-400">${(r.replaced_ros_points || 0).toFixed(1)}</p>
-                        <p class="text-xs text-gray-500">ROS pts</p>
-                    </div>
-                    <div class="bg-green-900/20 rounded p-2 text-center">
-                        <p class="text-xs text-gray-400">Available FA</p>
-                        <p class="text-sm font-semibold text-white truncate">${r.fa_name || 'Unknown'}</p>
-                        <p class="text-lg font-bold text-green-400">${(r.fa_ros_points || 0).toFixed(1)}</p>
-                        <p class="text-xs text-gray-500">ROS pts</p>
-                    </div>
-                </div>
-                <div class="text-center">
-                    <span class="text-red-400 font-bold text-sm">-${delta.toFixed(1)} pts missed</span>
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderStartSitRegrets(regrets, containerId) {
-        const container = document.getElementById(containerId);
-        if (!regrets || regrets.length === 0) {
-            container.innerHTML = '<p class="text-gray-500 text-sm">No start/sit regrets found</p>';
-            return;
-        }
-        container.innerHTML = regrets.map(r => {
-            const delta = (r.regret_score || r.points_delta || 0);
-            const [cls, label] = severityClass(delta);
-            const swaps = r.swaps || [];
-            const swapHtml = swaps.length > 0 ? swaps.map(s => `
-                <div class="flex items-center justify-between text-xs py-1 border-b border-gray-700/50 last:border-0">
-                    <div class="flex-1">
-                        <span class="text-red-400">${s.bench_player_name || 'Unknown'}</span>
-                        <span class="text-gray-500 ml-1">${s.bench_player_points.toFixed(1)}</span>
-                    </div>
-                    <span class="text-gray-500 mx-2">&rarr;</span>
-                    <div class="flex-1 text-right">
-                        <span class="text-green-400">${s.start_player_name || 'Unknown'}</span>
-                        <span class="text-gray-500 ml-1">${s.start_player_points.toFixed(1)}</span>
-                    </div>
-                    <span class="text-green-400 font-semibold ml-2 whitespace-nowrap">+${s.swap_delta.toFixed(1)}</span>
-                </div>
-            `).join('') : '';
-
-            return `
-            <div class="rounded-lg p-4 mb-3 border ${cls}">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-medium text-gray-400">WEEK ${r.week || '?'}</span>
-                    <span class="text-xs font-bold px-2 py-0.5 rounded ${delta > 15 ? 'bg-red-500/30 text-red-300' : delta > 8 ? 'bg-orange-500/30 text-orange-300' : 'bg-yellow-500/30 text-yellow-300'}">${label}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="bg-red-900/20 rounded p-2 text-center">
-                        <p class="text-xs text-gray-400">Your lineup</p>
-                        <p class="text-lg font-bold text-red-400">${(r.actual_points || 0).toFixed(1)}</p>
-                        <p class="text-xs text-gray-500">pts</p>
-                    </div>
-                    <div class="bg-green-900/20 rounded p-2 text-center">
-                        <p class="text-xs text-gray-400">Optimal lineup</p>
-                        <p class="text-lg font-bold text-green-400">${(r.optimal_points || 0).toFixed(1)}</p>
-                        <p class="text-xs text-gray-500">pts</p>
-                    </div>
-                </div>
-                ${swapHtml ? `
-                <div class="mt-2 bg-gray-900/50 rounded p-2">
-                    <p class="text-xs text-gray-500 mb-1 font-medium">Swaps that would have helped:</p>
-                    ${swapHtml}
-                </div>` : ''}
-                <div class="text-center mt-2">
-                    <span class="text-red-400 font-bold text-sm">-${delta.toFixed(1)} pts on bench</span>
-                </div>
-            </div>`;
-        }).join('');
-    }
+    // --- Timeline ---
 
     async function loadTimeline() {
         if (!currentTeamId) return;
         const container = document.getElementById('timeline-container');
-        container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading timeline...</p>';
+        container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading...</p>';
         try {
             const res = await fetch(`/api/team/${currentTeamId}/weekly-timeline?${seasonParam()}`);
             const data = await res.json();
-            const { timeline, max_score } = data;
+            timelineData = data.timeline;
+            const maxScore = data.max_score;
 
-            container.innerHTML = timeline.map(w => {
-                const intensity = max_score > 0 ? w.total_score / max_score : 0;
-                const count = w.regrets.length;
-                // Color: green (no regret) → yellow → orange → red (max regret)
-                let bgColor, borderColor, textColor;
-                if (intensity === 0) {
-                    bgColor = 'bg-green-900/30';
-                    borderColor = 'border-green-700/50';
-                    textColor = 'text-green-400';
-                } else if (intensity < 0.3) {
-                    bgColor = 'bg-yellow-900/30';
-                    borderColor = 'border-yellow-700/50';
-                    textColor = 'text-yellow-400';
-                } else if (intensity < 0.6) {
-                    bgColor = 'bg-orange-900/30';
-                    borderColor = 'border-orange-700/50';
-                    textColor = 'text-orange-400';
-                } else {
-                    bgColor = 'bg-red-900/30';
-                    borderColor = 'border-red-700/50';
-                    textColor = 'text-red-400';
-                }
-                // Bar height proportional to intensity (min 4px, max 64px)
+            container.innerHTML = timelineData.map(w => {
+                const intensity = maxScore > 0 ? w.total_score / maxScore : 0;
+                const m = w.matchup;
+                const color = m ? m.color : (w.total_score === 0 ? 'green' : 'yellow');
+
+                const colorMap = {
+                    green:  { bg: 'bg-green-900/30',  border: 'border-green-700/50', bar: 'bg-green-600/50',  text: 'text-green-400' },
+                    yellow: { bg: 'bg-yellow-900/30', border: 'border-yellow-700/50', bar: 'bg-yellow-500/50', text: 'text-yellow-400' },
+                    red:    { bg: 'bg-red-900/30',    border: 'border-red-700/50',    bar: 'bg-red-500/50',    text: 'text-red-400' },
+                };
+                const c = colorMap[color];
                 const barH = Math.max(4, Math.round(intensity * 64));
+                const winLoss = m ? (m.is_win ? 'W' : 'L') : '';
+                const wlColor = m ? (m.is_win ? 'text-green-400' : 'text-red-400') : '';
+
                 return `
-                <button class="timeline-week flex flex-col items-center flex-shrink-0 w-14 p-1.5 rounded-lg border ${bgColor} ${borderColor} hover:brightness-125 transition-all cursor-pointer"
-                        data-week="${w.week}" title="Week ${w.week}: ${w.total_score.toFixed(1)} pts regret">
-                    <span class="text-xs text-gray-400 mb-1">Wk ${w.week}</span>
+                <button class="timeline-week flex flex-col items-center flex-shrink-0 w-16 p-1.5 rounded-lg border ${c.bg} ${c.border} hover:brightness-125 transition-all cursor-pointer"
+                        data-week="${w.week}">
+                    <span class="text-xs text-gray-400">Wk ${w.week}</span>
+                    <span class="${wlColor} text-xs font-bold">${winLoss}</span>
                     <div class="w-full flex items-end justify-center" style="height:64px;">
-                        <div class="w-6 rounded-t ${intensity === 0 ? 'bg-green-600/40' : intensity < 0.3 ? 'bg-yellow-500/50' : intensity < 0.6 ? 'bg-orange-500/50' : 'bg-red-500/50'}"
-                             style="height:${barH}px;"></div>
+                        <div class="w-6 rounded-t ${c.bar}" style="height:${barH}px;"></div>
                     </div>
-                    <span class="${textColor} text-xs font-semibold mt-1">${w.total_score > 0 ? w.total_score.toFixed(0) : '-'}</span>
-                    ${count > 0 ? `<span class="text-gray-500 text-[10px]">${count} regret${count > 1 ? 's' : ''}</span>` : ''}
+                    <span class="${c.text} text-xs font-semibold mt-1">${w.total_score > 0 ? w.total_score.toFixed(0) : '-'}</span>
+                    <span class="text-gray-500 text-[10px]">${w.record || ''}</span>
                 </button>`;
             }).join('');
 
-            // Wire up week click to show detail
             container.querySelectorAll('.timeline-week').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const week = parseInt(btn.dataset.week);
-                    const weekData = timeline.find(w => w.week === week);
-                    showTimelineDetail(weekData);
-                    // Highlight selected
+                    showTimelineDetail(timelineData.find(w => w.week === week));
                     container.querySelectorAll('.timeline-week').forEach(b => b.classList.remove('ring-2', 'ring-blue-500'));
                     btn.classList.add('ring-2', 'ring-blue-500');
                 });
@@ -409,24 +185,54 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showTimelineDetail(weekData) {
+    function showTimelineDetail(w) {
         const detail = document.getElementById('timeline-detail');
         const title = document.getElementById('timeline-detail-title');
         const content = document.getElementById('timeline-detail-content');
 
-        if (!weekData || weekData.regrets.length === 0) {
-            title.textContent = `Week ${weekData.week} — No regrets`;
-            content.innerHTML = '<p class="text-green-400 text-sm">Clean week! No points left on the table.</p>';
+        if (!w) return;
+
+        const m = w.matchup;
+        let matchupHtml = '';
+        if (m) {
+            const resultText = m.is_win ? 'Won' : 'Lost';
+            const resultColor = m.is_win ? 'text-green-400' : 'text-red-400';
+            const optimalNote = !m.is_win && m.would_have_won
+                ? `<span class="text-red-400 text-xs ml-2">Optimal lineup (${m.optimal_score.toFixed(1)}) would have won</span>`
+                : !m.is_win
+                ? `<span class="text-yellow-400 text-xs ml-2">Would have lost either way</span>`
+                : '';
+            matchupHtml = `
+            <div class="bg-gray-900/50 rounded-lg p-3 mb-3 border border-gray-700/50">
+                <div class="flex items-center gap-3">
+                    <span class="${resultColor} font-bold">${resultText}</span>
+                    <span class="text-white font-semibold">${m.team_score.toFixed(1)}</span>
+                    <span class="text-gray-500">-</span>
+                    <span class="text-gray-300">${m.opponent_score.toFixed(1)}</span>
+                    ${optimalNote}
+                </div>
+            </div>`;
+        }
+
+        const startsitRegrets = w.regrets.filter(r => r.metric_type === 'start_sit');
+        const waiverRegrets = w.regrets.filter(r => r.metric_type === 'waiver');
+
+        if (startsitRegrets.length === 0 && waiverRegrets.length === 0) {
+            title.textContent = `Week ${w.week}`;
+            content.innerHTML = matchupHtml + '<p class="text-green-400 text-sm">Clean week! No points left on the table.</p>';
             detail.classList.remove('hidden');
             return;
         }
 
-        title.textContent = `Week ${weekData.week} — ${weekData.total_score.toFixed(1)} pts regret`;
-        content.innerHTML = weekData.regrets.map(r => {
-            const typeLabel = r.metric_type === 'start_sit' ? 'START/SIT' : r.metric_type.toUpperCase();
-            const typeColor = r.metric_type === 'start_sit' ? 'text-orange-400' : r.metric_type === 'waiver' ? 'text-purple-400' : 'text-blue-400';
+        title.textContent = `Week ${w.week} — ${w.total_score.toFixed(1)} pts regret`;
+
+        let regretHtml = matchupHtml;
+
+        // Start/Sit section
+        for (const r of startsitRegrets) {
+            if (r.regret_score <= 0) continue;
             const swaps = r.swaps || [];
-            const swapHtml = swaps.length > 0 ? swaps.map(s => `
+            const swapHtml = swaps.map(s => `
                 <div class="flex items-center text-xs py-0.5">
                     <span class="text-red-400">${s.bench_player_name}</span>
                     <span class="text-gray-600 mx-1">${s.bench_player_points.toFixed(1)}</span>
@@ -435,37 +241,109 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="text-gray-600 mx-1">${s.start_player_points.toFixed(1)}</span>
                     <span class="text-green-400 font-semibold ml-auto">+${s.swap_delta.toFixed(1)}</span>
                 </div>
-            `).join('') : '';
+            `).join('');
 
-            return `
+            regretHtml += `
             <div class="bg-gray-900/50 rounded-lg p-3 mb-2 border border-gray-700/50">
                 <div class="flex justify-between items-center mb-1">
-                    <span class="${typeColor} text-xs font-semibold">${typeLabel}</span>
-                    <span class="text-red-400 text-sm font-bold">${r.regret_score.toFixed(1)} pts</span>
+                    <span class="text-orange-400 text-xs font-semibold">LINEUP</span>
+                    <span class="text-red-400 text-sm font-bold">${r.regret_score.toFixed(1)} pts on bench</span>
                 </div>
-                <p class="text-gray-300 text-xs mb-1">${r.narrative || ''}</p>
-                ${swapHtml ? `<div class="mt-1 border-t border-gray-700/50 pt-1">${swapHtml}</div>` : ''}
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="bg-red-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Your lineup</p>
+                        <p class="text-lg font-bold text-red-400">${(r.actual_points || 0).toFixed(1)}</p>
+                    </div>
+                    <div class="bg-green-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Optimal</p>
+                        <p class="text-lg font-bold text-green-400">${(r.optimal_points || 0).toFixed(1)}</p>
+                    </div>
+                </div>
+                ${swapHtml ? `<div class="border-t border-gray-700/50 pt-1">${swapHtml}</div>` : ''}
             </div>`;
-        }).join('');
+        }
+
+        // Waiver section
+        for (const r of waiverRegrets) {
+            if (r.regret_score <= 0) continue;
+            regretHtml += `
+            <div class="bg-gray-900/50 rounded-lg p-3 mb-2 border border-gray-700/50">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-purple-400 text-xs font-semibold">WAIVER MISS</span>
+                    <span class="text-purple-300 text-xs">${r.fa_position || ''} &middot; ${(r.fa_ownership_pct || 0)}% owned</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-red-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">You kept</p>
+                        <p class="text-sm font-semibold text-white truncate">${r.replaced_name || '?'}</p>
+                        <p class="text-lg font-bold text-red-400">${(r.replaced_ros_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">ROS pts</p>
+                    </div>
+                    <div class="bg-green-900/20 rounded p-2 text-center">
+                        <p class="text-xs text-gray-400">Available FA</p>
+                        <p class="text-sm font-semibold text-white truncate">${r.fa_name || '?'}</p>
+                        <p class="text-lg font-bold text-green-400">${(r.fa_ros_points || 0).toFixed(1)}</p>
+                        <p class="text-xs text-gray-500">ROS pts</p>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        content.innerHTML = regretHtml;
         detail.classList.remove('hidden');
     }
 
-    async function loadDeepDive(type, containerId) {
-        if (!currentTeamId) return;
-        const container = document.getElementById(containerId);
-        container.innerHTML = '<p class="text-gray-400 text-sm animate-pulse">Loading...</p>';
-        try {
-            const res = await fetch(`/api/team/${currentTeamId}/${type}-regrets?${seasonParam()}`);
-            const data = await res.json();
-            const key = Object.keys(data)[0];
-            const regrets = data[key];
-            if (type === 'draft') renderDraftRegrets(regrets, containerId);
-            else if (type === 'waiver') renderWaiverRegrets(regrets, containerId);
-            else if (type === 'startsit') renderStartSitRegrets(regrets, containerId);
-        } catch (e) {
-            container.innerHTML = '<p class="text-red-400 text-sm">Failed to load</p>';
+    // --- Draft Regret (Full Width) ---
+
+    function renderDraftRegrets(regrets) {
+        const container = document.getElementById('draft-regrets-content');
+        if (!regrets || regrets.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-sm">No draft regrets found</p>';
+            return;
         }
+        container.innerHTML = regrets.map((r, i) => {
+            const delta = r.regret_score || r.points_delta || 0;
+            const pos = r.drafted_position || '';
+            const ppg_drafted = r.drafted_player_points ? (r.drafted_player_points / 17).toFixed(1) : '0.0';
+            const ppg_missed = r.missed_player_points ? (r.missed_player_points / 17).toFixed(1) : '0.0';
+            return `
+            <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-medium text-gray-400">Rd ${r.round || '?'}, Pick #${r.overall_pick || '?'}</span>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded bg-gray-700 text-gray-300">${pos}</span>
+                </div>
+
+                <div class="flex-1 space-y-3">
+                    <!-- Drafted player -->
+                    <div class="bg-red-900/20 rounded-lg p-3">
+                        <p class="text-xs text-gray-400 mb-1">You drafted</p>
+                        <p class="text-sm font-bold text-white">${r.drafted_player_name || '?'}</p>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span class="text-2xl font-bold text-red-400">${(r.drafted_player_points || 0).toFixed(1)}</span>
+                            <span class="text-xs text-gray-500">${ppg_drafted} ppg</span>
+                        </div>
+                    </div>
+
+                    <!-- Missed player -->
+                    <div class="bg-green-900/20 rounded-lg p-3">
+                        <p class="text-xs text-gray-400 mb-1">Could have had</p>
+                        <p class="text-sm font-bold text-white">${r.missed_player_name || '?'}</p>
+                        <div class="flex items-baseline gap-2 mt-1">
+                            <span class="text-2xl font-bold text-green-400">${(r.missed_player_points || 0).toFixed(1)}</span>
+                            <span class="text-xs text-gray-500">${ppg_missed} ppg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-3 border-t border-gray-700 text-center">
+                    <span class="text-red-400 font-bold">${delta.toFixed(1)} pts lost</span>
+                    <span class="text-gray-500 text-xs ml-1">(${r.pick_distance || '?'} picks apart)</span>
+                </div>
+            </div>`;
+        }).join('');
     }
+
+    // --- Team Selection ---
 
     teamSelect.addEventListener('change', async function() {
         const teamId = this.value;
@@ -474,33 +352,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.getElementById('loading-state').classList.add('hidden');
         document.getElementById('team-dashboard').classList.remove('hidden');
-
-        // Auto-load timeline and pillar deep-dives
-        loadTimeline();
         document.getElementById('timeline-detail').classList.add('hidden');
-        loadDeepDive('draft', 'draft-regrets-content');
-        loadDeepDive('waiver', 'waiver-regrets-content');
-        loadDeepDive('startsit', 'startsit-regrets-content');
 
-        // Fetch and render summary
+        // Load timeline + draft in parallel
+        loadTimeline();
+
+        // Draft regrets
+        try {
+            const res = await fetch(`/api/team/${currentTeamId}/draft-regrets?${seasonParam()}`);
+            const data = await res.json();
+            renderDraftRegrets(data.draft_regrets);
+        } catch (e) {
+            document.getElementById('draft-regrets-content').innerHTML = '<p class="text-red-400 text-sm">Failed to load</p>';
+        }
+
+        // Summary
         try {
             const summaryRes = await fetch(`/api/team/${teamId}/summary?${seasonParam()}`);
             const summary = await summaryRes.json();
-            document.getElementById('total-regrets').textContent = summary.total_regrets;
             document.getElementById('total-points-lost').textContent = summary.total_points_lost.toFixed(1);
             document.getElementById('total-scored').textContent = summary.total_scored.toFixed(1);
+
+            // Derive season record from timeline once loaded
+            if (timelineData) {
+                const lastWeekWithRecord = [...timelineData].reverse().find(w => w.record);
+                if (lastWeekWithRecord) {
+                    document.getElementById('season-record').textContent = lastWeekWithRecord.record;
+                }
+            }
+
             if (summary.league_range) {
                 const r = summary.league_range;
 
-                // Regrets range bar
-                const rMin = r.regrets[0], rMax = r.regrets[1];
-                const rPct = rMax > rMin ? ((summary.total_regrets - rMin) / (rMax - rMin)) * 100 : 50;
-                document.getElementById('regrets-min').textContent = rMin;
-                document.getElementById('regrets-max').textContent = rMax;
-                document.getElementById('regrets-marker').style.left = `${Math.max(0, Math.min(100, rPct))}%`;
-                document.getElementById('regrets-range-container').style.display = 'block';
-
-                // Points lost range bar
                 const pMin = r.points_lost[0], pMax = r.points_lost[1];
                 const pPct = pMax > pMin ? ((summary.total_points_lost - pMin) / (pMax - pMin)) * 100 : 50;
                 document.getElementById('points-min').textContent = pMin.toFixed(0);
@@ -508,7 +391,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('points-marker').style.left = `${Math.max(0, Math.min(100, pPct))}%`;
                 document.getElementById('points-range-container').style.display = 'block';
 
-                // Scored range bar
                 const min = r.scored[0], max = r.scored[1];
                 const pct = max > min ? ((summary.total_scored - min) / (max - min)) * 100 : 50;
                 document.getElementById('scored-min').textContent = min.toFixed(0);
@@ -519,6 +401,14 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) {
             console.error('Failed to load summary:', e);
         }
+
+        // Update record after timeline loads (slight race)
+        setTimeout(() => {
+            if (timelineData) {
+                const last = [...timelineData].reverse().find(w => w.record);
+                if (last) document.getElementById('season-record').textContent = last.record;
+            }
+        }, 1500);
     });
 });
 </script>

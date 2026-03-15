@@ -132,7 +132,7 @@ class DraftRegretCalculator:
                     })
 
         regrets.sort(key=lambda x: x["points_delta"], reverse=True)
-        return regrets[:3]
+        return regrets[:5]
 
     async def _resolve_player_name(self, yahoo_id: str) -> str:
         """Resolve a Yahoo player ID to a name via player_map."""

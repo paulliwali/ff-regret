@@ -316,45 +316,95 @@ async def get_all_regrets(team_id: str, season_year: int = None):
 
 @app.get("/api/team/{team_id}/weekly-timeline")
 async def get_weekly_timeline(team_id: str, season_year: int = None):
-    """Get per-week regret summary for timeline visualization."""
-    from app.models import RegretMetric
+    """Get per-week regret summary with matchup context for timeline."""
+    from app.models import RegretMetric, LeagueMatchup
     from sqlalchemy import select
 
     year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
+        # Fetch all weekly regrets (start_sit + waiver)
         result = await session.execute(
             select(RegretMetric)
             .where(RegretMetric.team_id == team_id)
             .where(RegretMetric.week.isnot(None))
-            .where(RegretMetric.regret_score > 0)
             .where(RegretMetric.season_year == year)
             .order_by(RegretMetric.week)
         )
         regrets = result.scalars().all()
 
-        # Group by week
+        # Fetch matchups for this team
+        result = await session.execute(
+            select(LeagueMatchup)
+            .where(LeagueMatchup.team_id == team_id)
+            .where(LeagueMatchup.season_year == year)
+            .order_by(LeagueMatchup.week)
+        )
+        matchups_by_week = {m.week: m for m in result.scalars().all()}
+
+        # Group regrets by week
         weeks: dict[int, dict] = {}
         for r in regrets:
             wk = r.week
             if wk not in weeks:
                 weeks[wk] = {"week": wk, "total_score": 0, "regrets": []}
-            weeks[wk]["total_score"] += r.regret_score
+            if r.regret_score > 0:
+                weeks[wk]["total_score"] += r.regret_score
             weeks[wk]["regrets"].append({
                 "metric_type": r.metric_type,
                 "regret_score": r.regret_score,
                 **r.data_payload,
             })
 
-        # Build full 1-17 timeline with zeros for quiet weeks
+        # Build full 1-17 timeline with matchup context
         timeline = []
+        cumulative_wins = 0
+        cumulative_losses = 0
         for wk in range(1, 18):
-            if wk in weeks:
-                timeline.append(weeks[wk])
-            else:
-                timeline.append({"week": wk, "total_score": 0, "regrets": []})
+            entry = weeks.get(wk, {"week": wk, "total_score": 0, "regrets": []})
+            entry["week"] = wk
 
-        # Compute max for color scaling
+            matchup = matchups_by_week.get(wk)
+            if matchup:
+                actual_pts = matchup.team_score
+                opp_pts = matchup.opponent_score
+                is_win = matchup.is_win
+
+                if is_win:
+                    cumulative_wins += 1
+                else:
+                    cumulative_losses += 1
+
+                # Matchup-aware color: would optimal lineup have changed outcome?
+                startsit_delta = sum(
+                    r["regret_score"] for r in entry["regrets"]
+                    if r["metric_type"] == "start_sit" and r["regret_score"] > 0
+                )
+                optimal_pts = actual_pts + startsit_delta
+
+                if is_win or startsit_delta == 0:
+                    color = "green"
+                elif optimal_pts > opp_pts:
+                    color = "red"  # optimal would have won
+                else:
+                    color = "yellow"  # lost either way
+
+                entry["matchup"] = {
+                    "team_score": actual_pts,
+                    "opponent_score": opp_pts,
+                    "opponent_id": matchup.opponent_id,
+                    "is_win": is_win,
+                    "optimal_score": round(optimal_pts, 2),
+                    "would_have_won": optimal_pts > opp_pts,
+                    "color": color,
+                }
+                entry["record"] = f"{cumulative_wins}-{cumulative_losses}"
+            else:
+                entry["matchup"] = None
+                entry["record"] = f"{cumulative_wins}-{cumulative_losses}"
+
+            timeline.append(entry)
+
         max_score = max((w["total_score"] for w in timeline), default=1) or 1
 
         return {
