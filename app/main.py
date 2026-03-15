@@ -109,7 +109,9 @@ async def get_team_summary(team_id: str, season_year: int = None):
         score_filter = RegretMetric.regret_score > 0
         season_filter = RegretMetric.season_year == year
 
-        # Team-specific summary
+        # Team-specific summary: count weekly regrets (start/sit) for the
+        # "total regrets" number since those are visible in the timeline.
+        # Points lost sums all types.
         result = await session.execute(
             select(
                 func.count(RegretMetric.id).label("total_regrets"),
@@ -118,10 +120,22 @@ async def get_team_summary(team_id: str, season_year: int = None):
             .where(RegretMetric.team_id == team_id)
             .where(score_filter)
             .where(season_filter)
+            .where(RegretMetric.metric_type == "start_sit")
         )
-        summary = result.first()
+        weekly_summary = result.first()
 
-        # League-wide ranges (per-team aggregates)
+        # Total points lost across all types
+        result = await session.execute(
+            select(
+                func.sum(RegretMetric.regret_score).label("total_points_lost"),
+            )
+            .where(RegretMetric.team_id == team_id)
+            .where(score_filter)
+            .where(season_filter)
+        )
+        all_summary = result.first()
+
+        # League-wide ranges (per-team aggregates, start/sit only for count)
         team_stats = (
             select(
                 RegretMetric.team_id,
@@ -130,6 +144,7 @@ async def get_team_summary(team_id: str, season_year: int = None):
             )
             .where(score_filter)
             .where(season_filter)
+            .where(RegretMetric.metric_type == "start_sit")
             .group_by(RegretMetric.team_id)
         ).subquery()
 
@@ -163,8 +178,8 @@ async def get_team_summary(team_id: str, season_year: int = None):
 
         return {
             "team_id": team_id,
-            "total_regrets": summary.total_regrets or 0 if summary else 0,
-            "total_points_lost": float(summary.total_points_lost or 0) if summary else 0,
+            "total_regrets": weekly_summary.total_regrets or 0 if weekly_summary else 0,
+            "total_points_lost": float(all_summary.total_points_lost or 0) if all_summary else 0,
             "total_scored": team_scored,
             "league_range": {
                 "regrets": [int(league.min_regrets or 0), int(league.max_regrets or 0)],
