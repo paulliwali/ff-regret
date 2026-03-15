@@ -156,30 +156,47 @@ async def get_team_summary(team_id: str, season_year: int = None):
         scored_values = list(team_scored_map.values())
         scored_range = (min(scored_values), max(scored_values)) if scored_values else (0, 0)
 
-        # Standings: compute W-L for all teams from matchups
-        matchup_result = await session.execute(
-            select(
-                LeagueMatchup.team_id,
-                func.sum(func.cast(LeagueMatchup.is_win, Integer)).label("wins"),
-                func.count(LeagueMatchup.id).label("games"),
-                func.sum(LeagueMatchup.team_score).label("total_pts"),
-            )
-            .where(LeagueMatchup.season_year == year)
-            .group_by(LeagueMatchup.team_id)
-        )
-        standings_rows = matchup_result.all()
+        # Standings: use playoff results from team_standings.json,
+        # fall back to regular season W-L
+        import json
+        from pathlib import Path
+        standings_file = Path(__file__).parent / "team_standings.json"
+        playoff_standings = {}
+        if standings_file.exists():
+            all_standings = json.loads(standings_file.read_text())
+            playoff_standings = all_standings.get(str(year), {})
 
-        standings = sorted(
-            standings_rows,
-            key=lambda r: (r.wins or 0, r.total_pts or 0),
-            reverse=True,
+        # Get total teams count from matchups
+        team_count_result = await session.execute(
+            select(func.count(func.distinct(LeagueMatchup.team_id)))
+            .where(LeagueMatchup.season_year == year)
         )
-        total_teams = len(standings)
-        team_finish = None
-        for i, row in enumerate(standings):
-            if row.team_id == team_id:
-                team_finish = i + 1
-                break
+        total_teams = team_count_result.scalar() or 14
+
+        if team_id in playoff_standings:
+            team_finish = playoff_standings[team_id]
+        else:
+            # Fall back to regular season ranking
+            matchup_result = await session.execute(
+                select(
+                    LeagueMatchup.team_id,
+                    func.sum(func.cast(LeagueMatchup.is_win, Integer)).label("wins"),
+                    func.sum(LeagueMatchup.team_score).label("total_pts"),
+                )
+                .where(LeagueMatchup.season_year == year)
+                .group_by(LeagueMatchup.team_id)
+            )
+            standings_rows = matchup_result.all()
+            standings = sorted(
+                standings_rows,
+                key=lambda r: (r.wins or 0, r.total_pts or 0),
+                reverse=True,
+            )
+            team_finish = None
+            for i, row in enumerate(standings):
+                if row.team_id == team_id:
+                    team_finish = i + 1
+                    break
 
         return {
             "team_id": team_id,
