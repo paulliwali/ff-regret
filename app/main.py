@@ -99,30 +99,15 @@ async def get_teams_options(season_year: int = None):
 
 @app.get("/api/team/{team_id}/summary")
 async def get_team_summary(team_id: str, season_year: int = None):
-    """Get regret summary for a team, plus league-wide ranges."""
-    from app.models import RegretMetric
-    from sqlalchemy import select, func
+    """Get regret summary for a team, plus league-wide ranges and standings."""
+    from app.models import RegretMetric, LeagueMatchup
+    from sqlalchemy import select, func, Integer
 
     year = season_year or settings.season_year
     from app.db import async_session
     async with async_session() as session:
         score_filter = RegretMetric.regret_score > 0
         season_filter = RegretMetric.season_year == year
-
-        # Team-specific summary: count weekly regrets (start/sit) for the
-        # "total regrets" number since those are visible in the timeline.
-        # Points lost sums all types.
-        result = await session.execute(
-            select(
-                func.count(RegretMetric.id).label("total_regrets"),
-                func.sum(RegretMetric.regret_score).label("total_points_lost"),
-            )
-            .where(RegretMetric.team_id == team_id)
-            .where(score_filter)
-            .where(season_filter)
-            .where(RegretMetric.metric_type == "start_sit")
-        )
-        weekly_summary = result.first()
 
         # Total points lost across all types
         result = await session.execute(
@@ -135,25 +120,21 @@ async def get_team_summary(team_id: str, season_year: int = None):
         )
         all_summary = result.first()
 
-        # League-wide ranges (per-team aggregates, start/sit only for count)
-        team_stats = (
+        # League-wide ranges for points lost (all regret types, per-team)
+        all_team_stats = (
             select(
                 RegretMetric.team_id,
-                func.count(RegretMetric.id).label("cnt"),
                 func.sum(RegretMetric.regret_score).label("pts"),
             )
             .where(score_filter)
             .where(season_filter)
-            .where(RegretMetric.metric_type == "start_sit")
             .group_by(RegretMetric.team_id)
         ).subquery()
 
         league_result = await session.execute(
             select(
-                func.min(team_stats.c.cnt).label("min_regrets"),
-                func.max(team_stats.c.cnt).label("max_regrets"),
-                func.min(team_stats.c.pts).label("min_points"),
-                func.max(team_stats.c.pts).label("max_points"),
+                func.min(all_team_stats.c.pts).label("min_points"),
+                func.max(all_team_stats.c.pts).label("max_points"),
             )
         )
         league = league_result.first()
@@ -166,7 +147,6 @@ async def get_team_summary(team_id: str, season_year: int = None):
         )
         all_startsit = startsit_result.all()
 
-        # Aggregate per team
         team_scored_map: dict[str, float] = {}
         for row_team_id, payload in all_startsit:
             pts = float(payload.get("actual_points", 0))
@@ -176,13 +156,38 @@ async def get_team_summary(team_id: str, season_year: int = None):
         scored_values = list(team_scored_map.values())
         scored_range = (min(scored_values), max(scored_values)) if scored_values else (0, 0)
 
+        # Standings: compute W-L for all teams from matchups
+        matchup_result = await session.execute(
+            select(
+                LeagueMatchup.team_id,
+                func.sum(func.cast(LeagueMatchup.is_win, Integer)).label("wins"),
+                func.count(LeagueMatchup.id).label("games"),
+                func.sum(LeagueMatchup.team_score).label("total_pts"),
+            )
+            .where(LeagueMatchup.season_year == year)
+            .group_by(LeagueMatchup.team_id)
+        )
+        standings_rows = matchup_result.all()
+
+        standings = sorted(
+            standings_rows,
+            key=lambda r: (r.wins or 0, r.total_pts or 0),
+            reverse=True,
+        )
+        total_teams = len(standings)
+        team_finish = None
+        for i, row in enumerate(standings):
+            if row.team_id == team_id:
+                team_finish = i + 1
+                break
+
         return {
             "team_id": team_id,
-            "total_regrets": weekly_summary.total_regrets or 0 if weekly_summary else 0,
             "total_points_lost": float(all_summary.total_points_lost or 0) if all_summary else 0,
             "total_scored": team_scored,
+            "finish": team_finish,
+            "total_teams": total_teams,
             "league_range": {
-                "regrets": [int(league.min_regrets or 0), int(league.max_regrets or 0)],
                 "points_lost": [float(league.min_points or 0), float(league.max_points or 0)],
                 "scored": [
                     float(scored_range[0] or 0) if scored_range else 0,

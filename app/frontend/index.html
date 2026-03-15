@@ -44,9 +44,23 @@
 
             <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 flex flex-col">
                     <h3 class="text-sm font-semibold text-gray-400 mb-1">Season Record</h3>
-                    <p class="text-4xl font-bold text-white" id="season-record">-</p>
+                    <div class="flex items-center gap-3 mt-1">
+                        <span class="text-4xl font-bold text-white" id="season-record">-</span>
+                        <span class="text-2xl" id="finish-icon"></span>
+                    </div>
+                    <p class="text-sm text-gray-400 mt-1" id="finish-text"></p>
+                    <div class="mt-auto pt-3" id="finish-range-container" style="display:none;">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>1st</span>
+                            <span id="finish-total">14th</span>
+                        </div>
+                        <div class="relative h-2 bg-gray-700 rounded-full">
+                            <div id="finish-marker" class="absolute w-2 h-2 bg-blue-400 rounded-full" style="left:0%"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1 text-center">Final standing</p>
+                    </div>
                 </div>
                 <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
                     <h3 class="text-sm font-semibold text-gray-400 mb-1">Points Left on Table</h3>
@@ -332,15 +346,16 @@ document.addEventListener('DOMContentLoaded', function() {
             container.innerHTML = '<p class="text-gray-500 text-sm">No draft regrets found</p>';
             return;
         }
+        const numTeams = 14;
         container.innerHTML = regrets.map((r, i) => {
-            const delta = r.regret_score || r.points_delta || 0;
             const pos = r.drafted_position || '';
+            const pickInRound = r.overall_pick ? ((r.overall_pick - 1) % numTeams) + 1 : '?';
             const ppg_drafted = r.drafted_player_points ? (r.drafted_player_points / 17).toFixed(1) : '0.0';
             const ppg_missed = r.missed_player_points ? (r.missed_player_points / 17).toFixed(1) : '0.0';
             return `
             <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 flex flex-col">
                 <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-medium text-gray-400">Rd ${r.round || '?'}, Pick #${r.overall_pick || '?'}</span>
+                    <span class="text-xs font-medium text-gray-400">Rd ${r.round || '?'}, Pick ${pickInRound}</span>
                     <span class="text-xs font-bold px-2 py-0.5 rounded bg-gray-700 text-gray-300">${pos}</span>
                 </div>
 
@@ -364,11 +379,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="text-xs text-gray-500">${ppg_missed} ppg</span>
                         </div>
                     </div>
-                </div>
-
-                <div class="mt-3 pt-3 border-t border-gray-700 text-center">
-                    <span class="text-red-400 font-bold">${delta.toFixed(1)} pts lost</span>
-                    <span class="text-gray-500 text-xs ml-1">(${r.pick_distance || '?'} picks apart)</span>
                 </div>
             </div>`;
         }).join('');
@@ -443,6 +453,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const summary = await summaryRes.json();
             document.getElementById('total-points-lost').textContent = summary.total_points_lost.toFixed(1);
             document.getElementById('total-scored').textContent = summary.total_scored.toFixed(1);
+
+            // Standings / finish position
+            if (summary.finish && summary.total_teams) {
+                const finish = summary.finish;
+                const total = summary.total_teams;
+                const icons = { 1: '👑', 2: '🥈', 3: '🥉' };
+                document.getElementById('finish-icon').textContent = icons[finish] || '';
+                const ordinal = n => n + (['st','nd','rd'][((n+90)%100-10)%10-1] || 'th');
+                document.getElementById('finish-text').textContent = `${ordinal(finish)} of ${total} teams`;
+                const pct = total > 1 ? ((finish - 1) / (total - 1)) * 100 : 0;
+                document.getElementById('finish-total').textContent = `${ordinal(total)}`;
+                document.getElementById('finish-marker').style.left = `${Math.max(0, Math.min(100, pct))}%`;
+                document.getElementById('finish-range-container').style.display = 'block';
+            }
 
             // Derive season record from timeline once loaded
             if (timelineData) {
