@@ -50,7 +50,7 @@ Yahoo API is the sole data source. The pipeline runs per league/season:
 
 1. **Fetch** — `scripts/initialize_yahoo.py` calls Yahoo API for league config, draft results, weekly rosters (all 17 weeks × 14 teams), waiver wire, player stats (`total_points` per player per week), and matchup results. All responses cached in `.cache/{season_year}/` as JSON.
 2. **Store** — Pipeline writes to 7 tables with season-scoped DELETEs (running for 2025 never touches 2024 data). Player mapping is identity: `yahoo_id == gsis_id` since Yahoo is the only source. Fantasy points come directly from Yahoo's `total_points` field — no custom scoring calculator needed.
-3. **Calculate** — `scripts/calculate_regrets.py` runs three regret algorithms per team, stores results in `regret_metrics` with narrative text in `data_payload`.
+3. **Calculate** — `scripts/calculate_regrets.py` runs four regret algorithms per team, stores results in `regret_metrics` with narrative text in `data_payload`.
 4. **Serve** — FastAPI serves precomputed regrets via JSON API endpoints. Frontend fetches and renders client-side.
 
 ### Regret Algorithms
@@ -58,6 +58,8 @@ Yahoo API is the sole data source. The pipeline runs per league/season:
 **Draft Regret**: For each draft pick, find players drafted within ±3 picks at the same position. Calculate season-long points delta. Keep top 3 biggest misses per team.
 
 **Waiver Regret**: For weeks 1-14, find free agents (≤30% owned) who outscored the team's worst rostered player at that position for rest-of-season by >20 points. Deduplicate per FA, keep top 3.
+
+**Drop Regret**: Compare week-to-week rosters to detect dropped players. If a player was on your roster week N but not week N+1, never came back, and scored >30 pts ROS (excluding K/DEF), that's a drop regret. Keep top 3 per team. Displayed in timeline detail and as standalone "The Ones That Got Away" section.
 
 **Start/Sit Regret**: For each week, compare actual lineup points to optimal lineup (greedy algorithm respecting position constraints: QB/2RB/2WR/TE/FLEX/K/DEF). Store specific bench↔start swaps with point deltas.
 
@@ -73,7 +75,7 @@ All in `app/main.py`. Routes use lazy imports for models and `async_session` ins
 ### Services (`app/services/`)
 - `yahoo_service.py` — Yahoo Fantasy API wrapper. `get_league_by_key()` for multi-season access. `fetch_player_stats_weekly()` takes `list(int)` player IDs (library handles key building + batching). `fetch_matchups()` parses deeply nested scoreboard JSON.
 - `lineup_optimizer.py` — Greedy algorithm filling QB→RB→WR→TE→FLEX→K→DEF slots with highest-scoring available players.
-- `regret_engine.py` — Three calculator classes (`DraftRegretCalculator`, `WaiverRegretCalculator`, `StartSitRegretCalculator`) + `RegretEngine` orchestrator. All accept `season_year` and scope DB queries accordingly.
+- `regret_engine.py` — Four calculator classes (`DraftRegretCalculator`, `WaiverRegretCalculator`, `DropRegretCalculator`, `StartSitRegretCalculator`) + `RegretEngine` orchestrator. All accept `season_year` and scope DB queries accordingly.
 
 ### Frontend (`app/frontend/`)
 - `base.html` — Tailwind dark mode + HTMX + Inter font via CDN
@@ -95,7 +97,7 @@ All in `app/main.py`. Routes use lazy imports for models and `async_session` ins
 - `league_draft_results` — Draft picks with round, overall_pick, player_id, season_year.
 - `waiver_wire_availability` — Weekly ownership % and waiver status + season_year.
 - `league_matchups` — Weekly matchup results: team_id, opponent_id, scores, is_win. Two rows per matchup (one per team).
-- `regret_metrics` — Precomputed regret scores. `metric_type` is "draft", "waiver", or "start_sit". `data_payload` JSON contains narrative text, player names/points, and swap details.
+- `regret_metrics` — Precomputed regret scores. `metric_type` is "draft", "waiver", "drop", or "start_sit". `data_payload` JSON contains narrative text, player names/points, and swap details.
 
 ## Deployment
 

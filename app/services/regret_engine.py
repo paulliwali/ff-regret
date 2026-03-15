@@ -306,6 +306,123 @@ class WaiverRegretCalculator:
         )
 
 
+class DropRegretCalculator:
+    """Calculate drop regret: players you dropped who balled out ROS."""
+
+    def __init__(self, session: AsyncSession, season_year: int = 2025):
+        self.session = session
+        self.season_year = season_year
+
+    async def calculate_drop_regrets(self, team_id: str) -> List[Dict[str, Any]]:
+        """Find players you dropped who scored well ROS and never came back."""
+        from app.models import LeagueWeeklyRoster, PlayerMap, NflGameLog
+
+        # Load player names
+        result = await self.session.execute(
+            select(PlayerMap).where(PlayerMap.season_year == self.season_year)
+        )
+        maps = result.scalars().all()
+        player_names = {r.yahoo_id: r.full_name for r in maps}
+        player_maps = {r.yahoo_id: r.gsis_id for r in maps}
+
+        # Load all game logs for ROS calculation
+        result = await self.session.execute(
+            select(NflGameLog).where(NflGameLog.season_year == self.season_year)
+        )
+        logs = result.scalars().all()
+        pts_by_week: Dict[str, Dict[int, float]] = {}
+        player_positions: Dict[str, str] = {}
+        for log in logs:
+            pts_by_week.setdefault(log.player_id, {})[log.week] = log.fantasy_points
+            if log.raw_stats and "position" in log.raw_stats:
+                player_positions[log.player_id] = log.raw_stats["position"]
+
+        # Load all weekly rosters for this team
+        result = await self.session.execute(
+            select(LeagueWeeklyRoster)
+            .where(LeagueWeeklyRoster.team_id == team_id)
+            .where(LeagueWeeklyRoster.season_year == self.season_year)
+            .order_by(LeagueWeeklyRoster.week)
+        )
+        rosters = result.scalars().all()
+
+        # Build week -> set of player_ids on roster
+        roster_by_week: Dict[int, set] = {}
+        for roster in rosters:
+            players = roster.roster_snapshot.get("players", [])
+            roster_by_week[roster.week] = {
+                str(p["player_id"]) for p in players
+            }
+
+        # Detect drops: on roster week N, not on roster week N+1
+        drops: List[Dict[str, Any]] = []
+        for week in range(1, 17):
+            current = roster_by_week.get(week, set())
+            next_week = roster_by_week.get(week + 1, set())
+            if not current or not next_week:
+                continue
+
+            dropped = current - next_week
+            for yahoo_id in dropped:
+                gsis_id = player_maps.get(yahoo_id)
+                if not gsis_id or gsis_id not in pts_by_week:
+                    continue
+
+                # Check if player ever comes back to this team's roster
+                came_back = any(
+                    yahoo_id in roster_by_week.get(w, set())
+                    for w in range(week + 2, 18)
+                )
+                if came_back:
+                    continue
+
+                # Calculate ROS points from week after drop
+                weekly = pts_by_week[gsis_id]
+                ros_points = sum(
+                    pts for wk, pts in weekly.items() if wk > week
+                )
+
+                pos = player_positions.get(gsis_id, "")
+                if pos in ("K", "DEF", ""):
+                    continue
+
+                if ros_points < 30:
+                    continue
+
+                drops.append({
+                    "week": week,
+                    "dropped_player_id": yahoo_id,
+                    "dropped_name": player_names.get(yahoo_id, f"Player #{yahoo_id}"),
+                    "dropped_position": pos,
+                    "ros_points": round(ros_points, 1),
+                    "ros_weeks": sum(1 for wk in weekly if wk > week),
+                    "ros_ppg": round(
+                        ros_points / max(sum(1 for wk in weekly if wk > week), 1), 1
+                    ),
+                })
+
+        drops.sort(key=lambda x: x["ros_points"], reverse=True)
+
+        # Deduplicate: if same player dropped multiple times, keep earliest drop
+        seen: Dict[str, Dict] = {}
+        for d in drops:
+            key = d["dropped_player_id"]
+            if key not in seen:
+                seen[key] = d
+        deduped = sorted(seen.values(), key=lambda x: x["ros_points"], reverse=True)
+
+        return deduped[:3]
+
+    def generate_narrative(self, regret: Dict[str, Any]) -> str:
+        """Generate narrative for drop regret."""
+        return (
+            f"You dropped {regret['dropped_name']} ({regret['dropped_position']}) "
+            f"after week {regret['week']}. They scored {regret['ros_points']:.1f} pts "
+            f"ROS ({regret['ros_ppg']:.1f} ppg over {regret['ros_weeks']} games) "
+            f"and you never got them back."
+        )
+
+
 class StartSitRegretCalculator:
     """Calculate start/sit regret metrics with lineup optimization."""
 
@@ -470,6 +587,7 @@ class RegretEngine:
         self.season_year = season_year
         self.draft_calculator = DraftRegretCalculator(session, season_year)
         self.waiver_calculator = WaiverRegretCalculator(session, season_year)
+        self.drop_calculator = DropRegretCalculator(session, season_year)
         self.startsit_calculator = StartSitRegretCalculator(
             session, roster_requirements, season_year
         )
@@ -480,6 +598,7 @@ class RegretEngine:
 
         draft_regrets = await self.draft_calculator.calculate_draft_regret(team_id)
         waiver_regrets = await self.waiver_calculator.calculate_waiver_regrets(team_id)
+        drop_regrets = await self.drop_calculator.calculate_drop_regrets(team_id)
 
         weekly_regrets = {}
         for week in range(1, 18):
@@ -495,5 +614,6 @@ class RegretEngine:
             "team_id": team_id,
             "draft_regrets": draft_regrets,
             "waiver_regrets": waiver_regrets,
+            "drop_regrets": drop_regrets,
             "weekly_regrets": weekly_regrets,
         }

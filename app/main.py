@@ -250,6 +250,32 @@ async def get_waiver_regrets(team_id: str, week: int = None, season_year: int = 
         }
 
 
+@app.get("/api/team/{team_id}/drop-regrets")
+async def get_drop_regrets(team_id: str, season_year: int = None):
+    """Get drop regrets for a team — players you let go who balled out."""
+    from app.models import RegretMetric
+    from sqlalchemy import select
+
+    year = season_year or settings.season_year
+    from app.db import async_session
+    async with async_session() as session:
+        result = await session.execute(
+            select(RegretMetric)
+            .where(RegretMetric.team_id == team_id)
+            .where(RegretMetric.metric_type == "drop")
+            .where(RegretMetric.season_year == year)
+            .order_by(RegretMetric.regret_score.desc())
+        )
+        regrets = result.scalars().all()
+
+        return {
+            "drop_regrets": [
+                {"regret_score": r.regret_score, "week": r.week, **r.data_payload}
+                for r in regrets
+            ]
+        }
+
+
 @app.get("/api/team/{team_id}/startsit-regrets")
 async def get_startsit_regrets(team_id: str, week: int = None, season_year: int = None):
     """Get start/sit regrets for a team, optionally filtered by week."""

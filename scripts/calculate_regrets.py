@@ -104,6 +104,26 @@ async def calculate_and_store_team_regrets(
             f"({waiver_regret['points_delta']:.1f} pts ROS)"
         )
 
+    # Store drop regrets
+    for i, drop_regret in enumerate(all_regrets.get("drop_regrets", [])):
+        await store_regret_metrics(
+            session=session,
+            team_id=team_id,
+            metric_type="drop",
+            week=drop_regret["week"],
+            season_year=season_year,
+            regret_score=drop_regret["ros_points"],
+            data_payload={
+                "rank": i + 1,
+                **drop_regret,
+                "narrative": engine.drop_calculator.generate_narrative(drop_regret),
+            },
+        )
+        logger.info(
+            f"  Stored drop regret #{i+1}: {drop_regret['dropped_name']} "
+            f"({drop_regret['ros_points']:.1f} pts ROS)"
+        )
+
     # Store weekly start/sit regrets
     weekly_regrets = all_regrets.get("weekly_regrets", {})
     for week, week_data in weekly_regrets.items():
