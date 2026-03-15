@@ -5,26 +5,26 @@
     <!-- Header -->
     <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 sm:py-0 sm:h-16 gap-2 sm:gap-0">
                 <div class="flex items-center">
                     <span class="text-2xl">🏈</span>
-                    <div class="ml-4">
-                        <h1 class="text-xl font-bold text-white">Fantasy Football Regret Engine</h1>
-                        <p class="text-xs text-gray-400">The "What If" Generator</p>
+                    <div class="ml-3 sm:ml-4">
+                        <h1 class="text-lg sm:text-xl font-bold text-white">FF Regret Engine</h1>
+                        <p class="text-xs text-gray-400 hidden sm:block">The "What If" Generator</p>
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center gap-2 sm:gap-4 flex-wrap">
                     <label for="season-select" class="text-sm text-gray-300">Season:</label>
                     <select id="season-select"
-                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-h-[44px]">
                         <option value="2025" selected>2025</option>
                         <option value="2024">2024</option>
                     </select>
 
                     <label for="team-select" class="text-sm text-gray-300">Team:</label>
                     <select id="team-select"
-                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-w-[200px]">
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 min-h-[44px] min-w-0 flex-1 sm:flex-none sm:min-w-[200px] max-w-full">
                         <option value="">Loading teams...</option>
                     </select>
                 </div>
@@ -32,7 +32,7 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
 
         <!-- Loading State -->
         <div id="loading-state" class="text-center py-20">
@@ -43,8 +43,8 @@
         <div id="team-dashboard" class="hidden">
 
             <!-- Summary Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 flex flex-col">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-10">
+                <div class="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700 flex flex-col">
                     <h3 class="text-sm font-semibold text-gray-400 mb-1">Season Record</h3>
                     <div class="flex items-center gap-3 mt-1">
                         <span class="text-4xl font-bold text-white" id="season-record">-</span>
@@ -62,7 +62,7 @@
                         <p class="text-xs text-gray-500 mt-1 text-center">Final standing</p>
                     </div>
                 </div>
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
                     <h3 class="text-sm font-semibold text-gray-400 mb-1">Points Left on Table</h3>
                     <p class="text-4xl font-bold text-red-400" id="total-points-lost">0.0</p>
                     <div class="mt-3" id="points-range-container" style="display:none;">
@@ -76,7 +76,7 @@
                         <p class="text-xs text-gray-500 mt-1 text-center">League range</p>
                     </div>
                 </div>
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-700">
                     <h3 class="text-sm font-semibold text-gray-400 mb-1">Season Points Scored</h3>
                     <p class="text-4xl font-bold text-green-400" id="total-scored">0.0</p>
                     <div class="mt-3" id="scored-range-container" style="display:none;">
@@ -94,10 +94,13 @@
 
             <!-- Weekly Timeline -->
             <div class="mb-10">
-                <h2 class="text-2xl font-bold text-white mb-4">Weekly Regret Timeline</h2>
-                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                    <div id="timeline-container" class="flex gap-1 overflow-x-auto pb-2">
-                        <p class="text-gray-500 text-sm">Select a team to load timeline</p>
+                <h2 class="text-xl sm:text-2xl font-bold text-white mb-4">Weekly Regret Timeline</h2>
+                <div class="bg-gray-800 rounded-xl p-3 sm:p-6 border border-gray-700">
+                    <div class="relative">
+                        <div id="timeline-container" class="flex gap-1 overflow-x-auto pb-2 scroll-smooth">
+                            <p class="text-gray-500 text-sm">Select a team to load timeline</p>
+                        </div>
+                        <div id="timeline-fade" class="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-gray-800 to-transparent hidden sm:hidden"></div>
                     </div>
                     <div id="timeline-detail" class="mt-4 hidden">
                         <div class="border-t border-gray-700 pt-4">
@@ -110,17 +113,17 @@
 
             <!-- Draft Regret (Full Width) -->
             <div class="mb-10">
-                <h2 class="text-2xl font-bold text-white mb-4">Draft Regret</h2>
+                <h2 class="text-xl sm:text-2xl font-bold text-white mb-4">Draft Regret</h2>
                 <p class="text-gray-400 mb-4 text-sm">Your biggest draft day misses</p>
-                <div id="draft-regrets-content" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div id="draft-regrets-content" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
                 </div>
             </div>
 
             <!-- Drop Regret -->
             <div class="mb-10">
-                <h2 class="text-2xl font-bold text-white mb-4">The Ones That Got Away</h2>
+                <h2 class="text-xl sm:text-2xl font-bold text-white mb-4">The Ones That Got Away</h2>
                 <p class="text-gray-400 mb-4 text-sm">Players you dropped who balled out — and never came back</p>
-                <div id="drop-regrets-content" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div id="drop-regrets-content" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 </div>
             </div>
         </div>
@@ -182,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const wlColor = m ? (m.is_win ? 'text-green-400' : 'text-red-400') : '';
 
                 return `
-                <button class="timeline-week flex flex-col items-center flex-shrink-0 w-16 p-1.5 rounded-lg border ${c.bg} ${c.border} hover:brightness-125 transition-all cursor-pointer"
+                <button class="timeline-week flex flex-col items-center flex-shrink-0 w-14 sm:w-16 p-1 sm:p-1.5 rounded-lg border ${c.bg} ${c.border} hover:brightness-125 transition-all cursor-pointer min-h-[100px]"
                         data-week="${w.week}">
                     <span class="text-xs text-gray-400">Wk ${w.week}</span>
                     <span class="${wlColor} text-xs font-bold">${winLoss}</span>
@@ -193,6 +196,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="text-gray-500 text-[10px]">${w.record || ''}</span>
                 </button>`;
             }).join('');
+
+            // Show/hide scroll fade hint
+            const fade = document.getElementById('timeline-fade');
+            if (container.scrollWidth > container.clientWidth) {
+                fade.classList.remove('hidden');
+                container.addEventListener('scroll', () => {
+                    const atEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 8;
+                    fade.classList.toggle('hidden', atEnd);
+                }, { passive: true });
+            }
 
             container.querySelectorAll('.timeline-week').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -353,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const ppg_drafted = r.drafted_player_points ? (r.drafted_player_points / 17).toFixed(1) : '0.0';
             const ppg_missed = r.missed_player_points ? (r.missed_player_points / 17).toFixed(1) : '0.0';
             return `
-            <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 flex flex-col">
+            <div class="bg-gray-800 rounded-xl p-4 sm:p-5 border border-gray-700 flex flex-col">
                 <div class="flex justify-between items-center mb-3">
                     <span class="text-xs font-medium text-gray-400">Rd ${r.round || '?'}, Pick ${pickInRound}</span>
                     <span class="text-xs font-bold px-2 py-0.5 rounded bg-gray-700 text-gray-300">${pos}</span>
@@ -394,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         container.innerHTML = regrets.map(r => {
             return `
-            <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <div class="bg-gray-800 rounded-xl p-4 sm:p-5 border border-gray-700">
                 <div class="flex justify-between items-center mb-3">
                     <span class="text-xs font-medium text-gray-400">Dropped after Week ${r.week}</span>
                     <span class="text-xs font-bold px-2 py-0.5 rounded bg-gray-700 text-gray-300">${r.dropped_position || ''}</span>

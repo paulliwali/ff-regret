@@ -33,6 +33,23 @@
         .severity-low {
             border-left: 4px solid #10b981;
         }
+
+        /* Slim scrollbar for timeline on mobile */
+        #timeline-container {
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(107, 114, 128, 0.3) transparent;
+        }
+        #timeline-container::-webkit-scrollbar {
+            height: 4px;
+        }
+        #timeline-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #timeline-container::-webkit-scrollbar-thumb {
+            background: rgba(107, 114, 128, 0.3);
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
